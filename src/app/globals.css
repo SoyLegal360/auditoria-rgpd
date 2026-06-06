@@ -1,26 +1,127 @@
 @import "tailwindcss";
 
 :root {
+  /* Marca SoyLegal360 */
+  --navy: #06152c;
+  --navy-2: #0d2447;
+  --gold: #c9a96e;
+  --gold-soft: #d8be83;
+  --copper: #c27b32;
+  --ink: #17213a;
+  --muted: #5d6980;
+  --line: #dfe4ee;
+  --soft: #f5f7fb;
+  --footer: #041022;
+  --shadow: 0 20px 60px rgba(6, 21, 44, 0.12);
+
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: var(--ink);
+
+  /* Familias del sistema (la web usa Georgia + Arial; Roboto solo en el wordmark) */
+  --font-serif: Georgia, "Times New Roman", serif;
+  --font-sans: Arial, Helvetica, sans-serif;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-navy: var(--navy);
+  --color-navy-2: var(--navy-2);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
+  --color-copper: var(--copper);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-soft: var(--soft);
+  --color-footer: var(--footer);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-serif: var(--font-serif);
+  --font-sans: var(--font-sans);
 }
 
 body {
   background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  color: var(--ink);
+  font-family: var(--font-serif);
+}
+
+/* ---------- Patrones de marca reutilizables ---------- */
+
+/* Wordmark "SoyLegal360" — Roboto, con el 360 en gold */
+.brand-wordmark {
+  font-family: var(--font-roboto), Arial, Helvetica, sans-serif;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.brand-wordmark span {
+  color: var(--gold);
+}
+
+/* Eyebrow — Arial uppercase, dorado, muy espaciado */
+.eyebrow {
+  font-family: var(--font-sans);
+  font-weight: 900;
+  font-size: 12px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+
+/* Botón dorado de marca */
+.btn-gold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 12px 22px;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #06152c;
+  background: linear-gradient(180deg, #ddc287, #c9a96e);
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+.btn-gold:hover:not(:disabled) {
+  background: linear-gradient(180deg, #e4cd97, #d4b578);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px -8px rgba(201, 169, 110, 0.55);
+}
+.btn-gold:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Botón navy (secundario sobre fondo claro) */
+.btn-navy {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 46px;
+  padding: 12px 22px;
+  border-radius: 8px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #fff;
+  background: var(--navy);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.btn-navy:hover {
+  background: var(--navy-2);
+  transform: translateY(-2px);
+}
+
+/* Fondo navy con pinstripe dorado (heros y bloques destacados) */
+.hero-pinstripe {
+  background:
+    linear-gradient(135deg, rgba(6, 21, 44, 0.98), rgba(13, 36, 71, 0.94)),
+    repeating-linear-gradient(90deg, rgba(201, 169, 110, 0.12) 0 1px, transparent 1px 92px);
 }
