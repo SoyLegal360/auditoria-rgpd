@@ -149,15 +149,125 @@ function Report({ result }: { result: AuditResult }) {
         })}
       </div>
 
-      <div className="mt-8 rounded-xl bg-indigo-600 p-6 text-center text-white">
-        <p className="text-lg font-semibold">¿Quieres el informe completo con plan de acción?</p>
-        <p className="mt-1 text-sm text-indigo-100">
-          Te lo enviamos por email con las correcciones priorizadas por un experto en RGPD.
-        </p>
-        <p className="mt-3 text-xs text-indigo-200">
-          (Captura de lead + informe por IA — próxima fase)
+      <LeadCapture url={result.finalUrl || result.url} />
+    </section>
+  );
+}
+
+interface LeadResponse {
+  summary: string;
+  recommendations: string[];
+}
+
+function LeadCapture({ url }: { url: string }) {
+  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState<LeadResponse | null>(null);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    if (!consent) {
+      setError("Debes aceptar la política de privacidad.");
+      return;
+    }
+    setSending(true);
+    try {
+      const res = await fetch("/api/lead", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, name, phone, url, consent }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "No se pudo enviar.");
+      setDone(data as LeadResponse);
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="mt-8 rounded-xl bg-indigo-600 p-6 text-white sm:p-8">
+        <p className="text-lg font-semibold">¡Gracias! Aquí tienes tu plan de acción 👇</p>
+        <p className="mt-2 text-sm text-indigo-100">{done.summary}</p>
+        <ul className="mt-4 space-y-2">
+          {done.recommendations.map((r, i) => (
+            <li key={i} className="flex gap-2 rounded-lg bg-white/10 p-3 text-sm">
+              <span className="font-bold text-indigo-200">{i + 1}.</span>
+              <span>{r}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mt-4 text-xs text-indigo-200">
+          Un experto de SoyLegal360 revisará tu caso y se pondrá en contacto contigo.
         </p>
       </div>
-    </section>
+    );
+  }
+
+  return (
+    <div className="mt-8 rounded-xl bg-indigo-600 p-6 text-white sm:p-8">
+      <p className="text-lg font-semibold">¿Quieres el informe completo con plan de acción?</p>
+      <p className="mt-1 text-sm text-indigo-100">
+        Déjanos tu email y un experto en RGPD te enviará las correcciones priorizadas para tu web.
+      </p>
+
+      <form onSubmit={submit} className="mt-5 space-y-3">
+        <div className="grid gap-3 sm:grid-cols-2">
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="Tu nombre (opcional)"
+            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-indigo-200 outline-none focus:border-white/50"
+          />
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="Teléfono (opcional)"
+            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-indigo-200 outline-none focus:border-white/50"
+          />
+        </div>
+        <input
+          type="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="tu@email.com"
+          className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-indigo-200 outline-none focus:border-white/50"
+        />
+        <label className="flex items-start gap-2 text-xs text-indigo-100">
+          <input
+            type="checkbox"
+            checked={consent}
+            onChange={(e) => setConsent(e.target.checked)}
+            className="mt-0.5"
+          />
+          <span>
+            Acepto la{" "}
+            <a href="https://soylegal360.es/politica-de-privacidad/" target="_blank" rel="noopener" className="underline">
+              política de privacidad
+            </a>{" "}
+            y que SoyLegal360 me contacte sobre esta auditoría.
+          </span>
+        </label>
+        {error && <p className="text-sm font-medium text-red-200">{error}</p>}
+        <button
+          type="submit"
+          disabled={sending}
+          className="w-full rounded-lg bg-white px-6 py-3 font-semibold text-indigo-700 transition hover:bg-indigo-50 disabled:opacity-60"
+        >
+          {sending ? "Enviando…" : "Recibir mi plan de acción"}
+        </button>
+      </form>
+    </div>
   );
 }

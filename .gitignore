@@ -20,6 +20,9 @@
 # production
 /build
 
+# leads capturados (datos personales, no versionar)
+/data
+
 # misc
 .DS_Store
 *.pem
