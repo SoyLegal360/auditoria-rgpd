@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { AuditResult, Finding, Severity } from "@/lib/audit";
 
-const SEV_STYLE: Record<Severity, { dot: string; label: string }> = {
-  ok: { dot: "bg-emerald-500", label: "Correcto" },
-  warn: { dot: "bg-amber-500", label: "Mejorable" },
-  fail: { dot: "bg-red-500", label: "Fallo" },
-  info: { dot: "bg-zinc-400", label: "Info" },
+const SEV_STYLE: Record<Severity, { dot: string; accent: string; label: string }> = {
+  ok: { dot: "bg-emerald-500", accent: "finding-ok", label: "Correcto" },
+  warn: { dot: "bg-amber-500", accent: "finding-warn", label: "Mejorable" },
+  fail: { dot: "bg-red-500", accent: "finding-fail", label: "Fallo" },
+  info: { dot: "bg-zinc-400", accent: "finding-info", label: "Info" },
 };
 
 const GRADE_COLOR: Record<string, string> = {
@@ -25,6 +25,8 @@ const CATEGORIES: { key: Finding["category"]; label: string; icon: string }[] = 
   { key: "formularios", label: "Formularios", icon: "📝" },
   { key: "correo", label: "Correo electrónico", icon: "✉️" },
 ];
+
+const TECH_CHIPS = ["HTTPS · SSL", "Cookies", "Rastreadores", "Textos legales", "SPF · DMARC"];
 
 export default function Home() {
   const [url, setUrl] = useState("");
@@ -78,17 +80,28 @@ export default function Home() {
       </header>
 
       {/* Hero + formulario */}
-      <section className="hero-pinstripe px-6 py-16 text-center text-white sm:py-20">
-        <div className="mx-auto max-w-3xl">
-          <p className="eyebrow">RGPD · LOPDGDD · LSSICE</p>
+      <section className="hero-pinstripe relative overflow-hidden px-6 py-16 text-center text-white sm:py-20">
+        <div className="tech-grid" aria-hidden="true" />
+        <div className="gold-glow" aria-hidden="true" />
+        <div className="relative mx-auto max-w-3xl">
+          <p className="eyebrow">RGPD · LOPDGDD · LSSICE · AI Act</p>
           <h1 className="mx-auto mt-4 max-w-2xl font-serif text-4xl font-semibold leading-tight sm:text-5xl">
-            ¿Tu web cumple el{" "}
-            <span className="italic text-gold">RGPD</span>?
+            ¿Tu web cumple el <span className="italic text-gold">RGPD</span>?
           </h1>
           <p className="mx-auto mt-5 max-w-xl text-lg text-white/80">
             Analiza gratis tu sitio web en segundos: cookies, textos legales, seguridad y
             protección del correo. Recibe un informe con lo que debes corregir.
           </p>
+
+          {/* Chips técnicos */}
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+            {TECH_CHIPS.map((c) => (
+              <span key={c} className="tech-chip">
+                <span className="text-gold">▹</span>
+                {c}
+              </span>
+            ))}
+          </div>
 
           <form
             id="auditar"
@@ -100,7 +113,7 @@ export default function Home() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="tudominio.com"
-              className="flex-1 rounded-lg border border-white/20 bg-white px-4 py-3 font-sans text-base text-ink outline-none focus:border-gold focus:ring-2 focus:ring-gold/40"
+              className="h-[46px] flex-1 rounded-lg border border-white/20 bg-white px-4 font-mono text-base text-ink outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/40"
             />
             <button type="submit" disabled={loading} className="btn-gold">
               {loading ? "Analizando…" : "Auditar gratis"}
@@ -111,10 +124,85 @@ export default function Home() {
       </section>
 
       <main className="mx-auto w-full max-w-4xl flex-1 px-6 py-12">
+        {loading && <Scanner url={url} />}
         {result && <Report result={result} />}
       </main>
 
       <Footer />
+    </div>
+  );
+}
+
+function Scanner({ url }: { url: string }) {
+  const steps = [
+    "Conectando con el servidor…",
+    "Comprobando HTTPS y certificado SSL…",
+    "Detectando cookies y rastreadores…",
+    "Buscando textos legales…",
+    "Verificando SPF y DMARC…",
+  ];
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setStep((s) => (s + 1) % steps.length), 1200);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <section className="fade-up rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(6,21,44,0.12)] sm:p-8">
+      <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
+        Auditando
+      </p>
+      <p className="mt-1 break-all font-mono text-lg text-navy">{url || "tu web"}</p>
+      <div className="scanbar mt-5" />
+      <p className="mt-4 font-mono text-sm text-muted">{steps[step]}</p>
+    </section>
+  );
+}
+
+function ScoreRing({ score, grade }: { score: number; grade: string }) {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const dur = 900;
+    const tick = (t: number) => {
+      const p = Math.min(1, (t - start) / dur);
+      setShown(Math.round(p * score));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [score]);
+
+  const R = 52;
+  const C = 2 * Math.PI * R;
+  const offset = C - (shown / 100) * C;
+  const stroke =
+    score >= 75 ? "#10b981" : score >= 55 ? "#c9a96e" : score >= 35 ? "#f59e0b" : "#ef4444";
+
+  return (
+    <div className="relative h-32 w-32 shrink-0">
+      <svg viewBox="0 0 120 120" className="score-ring h-full w-full -rotate-90">
+        <circle className="track" cx="60" cy="60" r={R} fill="none" strokeWidth="9" />
+        <circle
+          className="value"
+          cx="60"
+          cy="60"
+          r={R}
+          fill="none"
+          strokeWidth="9"
+          stroke={stroke}
+          strokeDasharray={C}
+          strokeDashoffset={offset}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono text-3xl font-bold text-navy">{shown}</span>
+        <span className={`font-serif text-lg font-black leading-none ${GRADE_COLOR[grade]}`}>
+          {grade}
+        </span>
+      </div>
     </div>
   );
 }
@@ -124,25 +212,19 @@ function Report({ result }: { result: AuditResult }) {
   const warns = result.findings.filter((f) => f.severity === "warn").length;
 
   return (
-    <section className="rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(6,21,44,0.12)] sm:p-8">
+    <section className="fade-up rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(6,21,44,0.12)] sm:p-8">
       <div className="flex flex-col items-center gap-6 border-b border-line pb-6 sm:flex-row sm:justify-between">
-        <div>
-          <p className="font-sans text-sm text-muted">Informe RGPD de</p>
-          <p className="font-serif text-2xl font-semibold text-navy">{result.domain}</p>
-          <p className="mt-1 font-sans text-sm text-muted">
+        <div className="text-center sm:text-left">
+          <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
+            Informe RGPD de
+          </p>
+          <p className="mt-1 break-all font-mono text-xl font-medium text-navy">{result.domain}</p>
+          <p className="mt-2 font-sans text-sm text-muted">
             <span className="font-semibold text-red-600">{fails} fallos</span> ·{" "}
             <span className="font-semibold text-amber-600">{warns} mejorables</span>
           </p>
         </div>
-        <div className="flex items-center gap-4">
-          <div className="text-right">
-            <div className="font-sans text-sm text-muted">Puntuación</div>
-            <div className="font-serif text-3xl font-bold text-navy">{result.score}/100</div>
-          </div>
-          <div className={`font-serif text-6xl font-black ${GRADE_COLOR[result.grade]}`}>
-            {result.grade}
-          </div>
-        </div>
+        <ScoreRing score={result.score} grade={result.grade} />
       </div>
 
       <div className="mt-6 space-y-8">
@@ -155,8 +237,12 @@ function Report({ result }: { result: AuditResult }) {
                 {cat.icon} {cat.label}
               </h3>
               <ul className="space-y-2">
-                {items.map((f) => (
-                  <li key={f.id} className="flex gap-3 rounded-lg bg-soft p-3">
+                {items.map((f, i) => (
+                  <li
+                    key={f.id}
+                    className={`finding ${SEV_STYLE[f.severity].accent} fade-up flex gap-3 rounded-lg bg-soft p-3`}
+                    style={{ animationDelay: `${i * 45}ms` }}
+                  >
                     <span
                       title={SEV_STYLE[f.severity].label}
                       className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEV_STYLE[f.severity].dot}`}
@@ -218,83 +304,93 @@ function LeadCapture({ url }: { url: string }) {
 
   if (done) {
     return (
-      <div className="hero-pinstripe mt-8 rounded-xl p-6 text-white sm:p-8">
-        <p className="font-serif text-xl font-semibold">¡Gracias! Aquí tienes tu plan de acción</p>
-        <p className="mt-2 font-sans text-sm text-white/80">{done.summary}</p>
-        <ul className="mt-4 space-y-2">
-          {done.recommendations.map((r, i) => (
-            <li key={i} className="flex gap-3 rounded-lg bg-white/10 p-3 font-sans text-sm">
-              <span className="font-bold text-gold">{i + 1}.</span>
-              <span>{r}</span>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-4 font-sans text-xs text-white/60">
-          Un experto de SoyLegal360 revisará tu caso y se pondrá en contacto contigo.
-        </p>
+      <div className="hero-pinstripe relative mt-8 overflow-hidden rounded-xl p-6 text-white sm:p-8">
+        <div className="tech-grid" aria-hidden="true" />
+        <div className="relative">
+          <p className="font-serif text-xl font-semibold">¡Gracias! Aquí tienes tu plan de acción</p>
+          <p className="mt-2 font-sans text-sm text-white/80">{done.summary}</p>
+          <ul className="mt-4 space-y-2">
+            {done.recommendations.map((r, i) => (
+              <li
+                key={i}
+                className="fade-up flex gap-3 rounded-lg bg-white/10 p-3 font-sans text-sm"
+                style={{ animationDelay: `${i * 60}ms` }}
+              >
+                <span className="font-bold text-gold">{i + 1}.</span>
+                <span>{r}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 font-sans text-xs text-white/60">
+            Un experto de SoyLegal360 revisará tu caso y se pondrá en contacto contigo.
+          </p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="hero-pinstripe mt-8 rounded-xl p-6 text-white sm:p-8">
-      <p className="font-serif text-xl font-semibold">
-        ¿Quieres el informe completo con plan de acción?
-      </p>
-      <p className="mt-1 font-sans text-sm text-white/80">
-        Déjanos tu email y un experto en RGPD te enviará las correcciones priorizadas para tu web.
-      </p>
+    <div className="hero-pinstripe relative mt-8 overflow-hidden rounded-xl p-6 text-white sm:p-8">
+      <div className="tech-grid" aria-hidden="true" />
+      <div className="relative">
+        <p className="font-serif text-xl font-semibold">
+          ¿Quieres el informe completo con plan de acción?
+        </p>
+        <p className="mt-1 font-sans text-sm text-white/80">
+          Déjanos tu email y un experto en RGPD te enviará las correcciones priorizadas para tu web.
+        </p>
 
-      <form onSubmit={submit} className="mt-5 space-y-3 font-sans">
-        <div className="grid gap-3 sm:grid-cols-2">
+        <form onSubmit={submit} className="mt-5 space-y-3 font-sans">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Tu nombre (opcional)"
+              className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/50 outline-none transition focus:border-gold"
+            />
+            <input
+              type="tel"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Teléfono (opcional)"
+              className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/50 outline-none transition focus:border-gold"
+            />
+          </div>
           <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Tu nombre (opcional)"
-            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/50 outline-none focus:border-gold"
+            type="email"
+            required
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tu@email.com"
+            className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/50 outline-none transition focus:border-gold"
           />
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="Teléfono (opcional)"
-            className="rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/50 outline-none focus:border-gold"
-          />
-        </div>
-        <input
-          type="email"
-          required
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          placeholder="tu@email.com"
-          className="w-full rounded-lg border border-white/20 bg-white/10 px-4 py-2.5 text-white placeholder-white/50 outline-none focus:border-gold"
-        />
-        <label className="flex items-start gap-2 text-xs text-white/80">
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(e) => setConsent(e.target.checked)}
-            className="mt-0.5 accent-gold"
-          />
-          <span>
-            Acepto la{" "}
-            <a
-              href="https://soylegal360.es/politica-de-privacidad/"
-              target="_blank"
-              rel="noopener"
-              className="text-gold underline"
-            >
-              política de privacidad
-            </a>{" "}
-            y que SoyLegal360 me contacte sobre esta auditoría.
-          </span>
-        </label>
-        {error && <p className="text-sm font-medium text-red-300">{error}</p>}
-        <button type="submit" disabled={sending} className="btn-gold w-full">
-          {sending ? "Enviando…" : "Recibir mi plan de acción"}
-        </button>
-      </form>
+          <label className="flex items-start gap-2 text-xs text-white/80">
+            <input
+              type="checkbox"
+              checked={consent}
+              onChange={(e) => setConsent(e.target.checked)}
+              className="mt-0.5 accent-gold"
+            />
+            <span>
+              Acepto la{" "}
+              <a
+                href="https://soylegal360.es/politica-de-privacidad/"
+                target="_blank"
+                rel="noopener"
+                className="text-gold underline"
+              >
+                política de privacidad
+              </a>{" "}
+              y que SoyLegal360 me contacte sobre esta auditoría.
+            </span>
+          </label>
+          {error && <p className="text-sm font-medium text-red-300">{error}</p>}
+          <button type="submit" disabled={sending} className="btn-gold w-full">
+            {sending ? "Enviando…" : "Recibir mi plan de acción"}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

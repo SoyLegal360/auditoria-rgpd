@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Roboto } from "next/font/google";
+import { Roboto, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 // Roboto solo para el wordmark "SoyLegal360" (resto: Georgia/Arial del sistema).
@@ -7,6 +7,13 @@ const roboto = Roboto({
   variable: "--font-roboto",
   subsets: ["latin"],
   weight: ["400", "700", "900"],
+});
+
+// Monoespaciada para datos técnicos (dominio, puntuación) — aire legal-tech.
+const mono = JetBrains_Mono({
+  variable: "--font-mono",
+  subsets: ["latin"],
+  weight: ["400", "500", "700"],
 });
 
 const SITE_URL = "https://auditoria-rgpd.vercel.app";
@@ -45,7 +52,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="es" className={`${roboto.variable} h-full antialiased`}>
+    <html lang="es" className={`${roboto.variable} ${mono.variable} h-full antialiased`}>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
