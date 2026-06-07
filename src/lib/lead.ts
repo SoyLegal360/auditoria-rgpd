@@ -108,8 +108,9 @@ export async function qualifyLead(
       source: "claude",
       model: MODEL,
     };
-  } catch {
+  } catch (e) {
     // Cualquier fallo (clave inválida, JSON mal formado, red) → respaldo por reglas.
+    console.error("Claude falló, uso fallback por reglas:", (e as Error).message);
     return fallbackQualify(audit);
   }
 }
