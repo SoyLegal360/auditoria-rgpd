@@ -16,6 +16,7 @@ export interface LeadRecord {
   };
   qualification: LeadQualification;
   legalSummary?: string; // análisis profundo de textos legales (interno, para la abogada)
+  marketingConsent?: boolean; // consentimiento SEPARADO para comunicaciones comerciales
 }
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
@@ -51,6 +52,7 @@ async function saveToNotion(r: LeadRecord): Promise<void> {
         Origen: { select: { name: r.qualification.source } },
         Recibido: { date: { start: r.receivedAt } },
         "Análisis textos legales": rt(r.legalSummary || ""),
+        Comercial: { checkbox: !!r.marketingConsent },
       },
     }),
     signal: AbortSignal.timeout(10000),

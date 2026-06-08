@@ -58,6 +58,13 @@ export interface LegalTeaser {
 }
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
+
+// Caché en memoria por (modo, dominio): evita repetir llamadas a Claude en
+// re-auditorías del mismo dominio (ahorro de coste + anti-abuso). Best-effort,
+// por instancia serverless (no distribuido). TTL 6h.
+const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+const analysisCache = new Map<string, { at: number; data: LegalAnalysis }>();
+
 const DISCLAIMER =
   "Diagnóstico orientativo automático. No sustituye la revisión de un abogado.";
 
@@ -219,6 +226,20 @@ export async function analyzeLegal(
 ): Promise<LegalAnalysis | null> {
   const mode: AnalyzeMode = opts.mode || "full";
   const url = normalizeUrl(rawUrl);
+
+  // Caché por dominio (normalizado sin www) → no repetimos la llamada a Claude.
+  let domain = "";
+  try {
+    domain = new URL(url).hostname.replace(/^www\./i, "").toLowerCase();
+  } catch {
+    /* dominio inválido → seguimos sin caché */
+  }
+  const key = `${mode}:${domain}`;
+  if (domain) {
+    const hit = analysisCache.get(key);
+    if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  }
+
   const home = await fetchPage(url, 12000);
   if (!home) return null;
 
@@ -290,7 +311,14 @@ export async function analyzeLegal(
       _notes: parsed.forms?._notes,
     };
 
-    return { businessType: parsed.businessType || businessType, docs, forms, source: "claude" };
+    const analysis: LegalAnalysis = {
+      businessType: parsed.businessType || businessType,
+      docs,
+      forms,
+      source: "claude",
+    };
+    if (domain) analysisCache.set(key, { at: Date.now(), data: analysis });
+    return analysis;
   } catch (e) {
     console.error("analyzeLegal falló:", (e as Error).message);
     return null;

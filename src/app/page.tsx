@@ -291,17 +291,40 @@ function Report({ result }: { result: AuditResult }) {
   );
 }
 
+const LEGAL_STEPS = [
+  "Localizando tus textos legales…",
+  "Leyendo la política de privacidad…",
+  "Revisando la política de cookies…",
+  "Comprobando el aviso legal…",
+  "Analizando formularios y consentimiento…",
+  "Contrastando con la checklist RGPD…",
+];
+
 function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: LegalTeaser | null }) {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    if (!loading) return;
+    const id = setInterval(() => setStep((s) => Math.min(s + 1, LEGAL_STEPS.length - 1)), 1900);
+    return () => clearInterval(id);
+  }, [loading]);
+
   if (loading) {
     return (
       <div className="mt-8 rounded-xl border border-line bg-soft p-5">
-        <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
-          Análisis profundo de textos legales
-        </p>
-        <p className="mt-1 font-mono text-sm text-navy">
-          Leyendo e interpretando tus textos legales con IA…
-        </p>
+        <div className="flex items-baseline justify-between gap-3">
+          <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
+            Análisis profundo de textos legales
+          </p>
+          <span className="font-mono text-[11px] text-muted">
+            {step + 1}/{LEGAL_STEPS.length}
+          </span>
+        </div>
+        <p className="mt-1 font-mono text-sm text-navy">{LEGAL_STEPS[step]}</p>
         <div className="scanbar mt-4" />
+        <p className="mt-3 font-sans text-xs text-muted">
+          Nuestra IA está leyendo tus documentos legales reales. Mientras tanto, deja tu email abajo
+          y te enviamos el informe completo en PDF.
+        </p>
       </div>
     );
   }
@@ -367,6 +390,7 @@ function LeadCapture({ url }: { url: string }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [consent, setConsent] = useState(false);
+  const [marketing, setMarketing] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState<LeadResponse | null>(null);
@@ -383,7 +407,7 @@ function LeadCapture({ url }: { url: string }) {
       const res = await fetch("/api/lead", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name, phone, url, consent }),
+        body: JSON.stringify({ email, name, phone, url, consent, marketing }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "No se pudo enviar.");
@@ -466,7 +490,7 @@ function LeadCapture({ url }: { url: string }) {
               className="mt-0.5 accent-gold"
             />
             <span>
-              Acepto la{" "}
+              He leído y acepto la{" "}
               <a
                 href="https://soylegal360.es/politica-de-privacidad/"
                 target="_blank"
@@ -474,10 +498,37 @@ function LeadCapture({ url }: { url: string }) {
                 className="text-gold underline"
               >
                 política de privacidad
-              </a>{" "}
-              y que SoyLegal360 me contacte sobre esta auditoría.
+              </a>
+              . <span className="text-white/60">(obligatorio para enviarte el informe)</span>
             </span>
           </label>
+          <label className="flex items-start gap-2 text-xs text-white/80">
+            <input
+              type="checkbox"
+              checked={marketing}
+              onChange={(e) => setMarketing(e.target.checked)}
+              className="mt-0.5 accent-gold"
+            />
+            <span>
+              Quiero recibir comunicaciones comerciales de SoyLegal360 (novedades, ofertas y
+              consejos de cumplimiento). <span className="text-white/60">(opcional)</span>
+            </span>
+          </label>
+          <p className="text-[11px] leading-relaxed text-white/50">
+            Responsable: SoyLegal360. Finalidad: elaborar y enviarte el diagnóstico solicitado y, si
+            lo autorizas, enviarte comunicaciones comerciales. Base jurídica: tu consentimiento.
+            Puedes ejercer tus derechos de acceso, rectificación y supresión escribiendo a
+            hola@soylegal360.es. Más información en la{" "}
+            <a
+              href="https://soylegal360.es/politica-de-privacidad/"
+              target="_blank"
+              rel="noopener"
+              className="underline"
+            >
+              política de privacidad
+            </a>
+            .
+          </p>
           {error && <p className="text-sm font-medium text-red-300">{error}</p>}
           <button type="submit" disabled={sending} className="btn-gold w-full">
             {sending ? "Enviando…" : "Recibir mi plan de acción"}

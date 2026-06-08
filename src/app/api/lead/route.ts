@@ -29,6 +29,7 @@ export async function POST(req: Request) {
     company?: string;
     url?: string;
     consent?: boolean;
+    marketing?: boolean;
   };
   try {
     body = await req.json();
@@ -80,6 +81,7 @@ export async function POST(req: Request) {
       },
       qualification,
       legalSummary: legal ? toInternalSummary(legal) : undefined,
+      marketingConsent: !!body.marketing,
     };
 
     await saveLead(record);
