@@ -74,7 +74,7 @@ async function saveToFile(record: LeadRecord): Promise<void> {
     await appendTo(DATA_DIR, record);
   } catch (e) {
     const code = (e as NodeJS.ErrnoException).code;
-    if (code === "EROFS" || code === "EACCES") {
+    if (code === "EROFS" || code === "EACCES" || code === "ENOENT") {
       await appendTo(path.join(os.tmpdir(), "auditoria-rgpd-leads"), record);
       return;
     }
