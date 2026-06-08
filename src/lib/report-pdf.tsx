@@ -9,7 +9,7 @@ import {
 } from "@react-pdf/renderer";
 import type { AuditResult } from "@/lib/audit";
 import type { LegalTeaser } from "@/lib/legal";
-import { LOGO_BLANCO_DATA_URI } from "@/lib/logo-data";
+import { LOGO_COLOR_DATA_URI } from "@/lib/logo-data";
 
 // Paleta de marca SoyLegal360.
 const NAVY = "#06152c";
@@ -28,11 +28,12 @@ const GRADE_COLOR: Record<string, string> = {
 
 const styles = StyleSheet.create({
   page: { paddingTop: 0, paddingBottom: 64, fontFamily: "Helvetica", fontSize: 10, color: INK },
-  header: { backgroundColor: NAVY, paddingVertical: 18, paddingHorizontal: 40, marginBottom: 24 },
-  logo: { height: 30, width: "auto" },
-  brand: { color: "#ffffff", fontSize: 15, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 },
-  brandGold: { color: GOLD },
-  headerSub: { color: "#9fb0c4", fontSize: 8.5, marginTop: 3, letterSpacing: 1.5, textTransform: "uppercase" },
+  header: {
+    backgroundColor: "#ffffff", paddingTop: 26, paddingBottom: 16, paddingHorizontal: 40,
+    marginBottom: 24, borderBottomWidth: 2, borderBottomColor: GOLD,
+  },
+  logo: { width: 112, height: 63, marginLeft: -6 },
+  headerSub: { color: MUTED, fontSize: 8.5, marginTop: 8, letterSpacing: 1.5, textTransform: "uppercase" },
   body: { paddingHorizontal: 40 },
   h1: { fontSize: 18, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 2 },
   domain: { fontSize: 11, color: MUTED, marginBottom: 18 },
@@ -136,8 +137,8 @@ function ReportDoc({ data }: { data: ReportData }) {
       <Page size="A4" style={styles.page}>
         <View style={styles.header} fixed>
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
-          <Image style={styles.logo} src={LOGO_BLANCO_DATA_URI} />
-          <Text style={[styles.headerSub, { marginTop: 8 }]}>Diagnóstico de cumplimiento RGPD</Text>
+          <Image style={styles.logo} src={LOGO_COLOR_DATA_URI} />
+          <Text style={styles.headerSub}>Diagnóstico de cumplimiento RGPD</Text>
         </View>
 
         <View style={styles.body}>
