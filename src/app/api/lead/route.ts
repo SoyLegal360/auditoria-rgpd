@@ -1,9 +1,9 @@
-import { NextResponse } from "next/server";
+import { NextResponse, after } from "next/server";
 import { randomUUID } from "crypto";
 import { auditSite } from "@/lib/audit";
-import { qualifyLead, type LeadContact } from "@/lib/lead";
+import { qualifyLead, fallbackQualify, type LeadContact } from "@/lib/lead";
 import { analyzeLegal, toInternalSummary, toPublicTeaser } from "@/lib/legal";
-import { saveLead, type LeadRecord } from "@/lib/store";
+import { saveLead, updateLeadAnalysis, type LeadRecord } from "@/lib/store";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { buildReportData, renderReportPdf } from "@/lib/report-pdf";
 import { sendReportEmail, emailEnabled } from "@/lib/email";
@@ -61,13 +61,11 @@ export async function POST(req: Request) {
   };
 
   try {
-    // Re-auditamos en el servidor para no fiarnos del informe enviado por el cliente.
+    // ── FASE RÁPIDA (~3-5s) ──────────────────────────────────────────────────
+    // Re-auditamos sin Claude. Cualificación inmediata por reglas (fallback).
+    // Guardamos en Notion y respondemos al visitante SIN esperar a Claude.
     const audit = await auditSite(url);
-    // Cualificación y análisis profundo de textos en paralelo (menos latencia).
-    const [qualification, legal] = await Promise.all([
-      qualifyLead(audit, contact),
-      analyzeLegal(url),
-    ]);
+    const quickQualification = fallbackQualify(audit);
 
     const record: LeadRecord = {
       id: randomUUID(),
@@ -79,44 +77,59 @@ export async function POST(req: Request) {
         score: audit.score,
         grade: audit.grade,
       },
-      qualification,
-      legalSummary: legal ? toInternalSummary(legal) : undefined,
+      qualification: quickQualification,
       marketingConsent: !!body.marketing,
     };
 
-    await saveLead(record);
+    const pageId = await saveLead(record);
 
-    // Informe PDF de marca + email (si Resend está configurado; si no, no-op silencioso).
-    let emailed = false;
-    if (emailEnabled()) {
+    // Respondemos inmediatamente — el visitante ve "¡Recibido!" en ~4s.
+    const response = NextResponse.json({ ok: true });
+
+    // ── FASE BACKGROUND (after) ───────────────────────────────────────────────
+    // Claude cualifica + analiza textos + actualiza Notion + genera PDF + envía email.
+    // Se ejecuta DESPUÉS de que la respuesta ya llegó al cliente (el usuario no espera).
+    after(async () => {
       try {
-        const reportData = buildReportData(
-          audit,
-          qualification.summary,
-          qualification.recommendations,
-          legal ? toPublicTeaser(legal) : null,
-        );
-        const pdf = await renderReportPdf(reportData);
-        emailed = await sendReportEmail({
-          to: contact.email,
-          name: contact.name,
-          domain: audit.domain,
-          score: audit.score,
-          grade: audit.grade,
-          pdf,
-        });
-      } catch (e) {
-        console.error("Generación/envío del informe falló:", (e as Error).message);
-      }
-    }
+        const [fullQualification, legal] = await Promise.all([
+          qualifyLead(audit, contact),
+          analyzeLegal(url, { mode: "full" }),
+        ]);
 
-    // Al visitante solo le devolvemos lo público (no el tier comercial interno).
-    return NextResponse.json({
-      ok: true,
-      emailed,
-      summary: qualification.summary,
-      recommendations: qualification.recommendations,
+        // Actualizar Notion con el análisis completo de Claude.
+        if (pageId) {
+          await updateLeadAnalysis(pageId, {
+            qualification: fullQualification,
+            legalSummary: legal ? toInternalSummary(legal) : undefined,
+          }).catch((e: Error) =>
+            console.error("Notion update (background) falló:", e.message),
+          );
+        }
+
+        // PDF de marca + email (si Resend está configurado).
+        if (emailEnabled()) {
+          const reportData = buildReportData(
+            audit,
+            fullQualification.summary,
+            fullQualification.recommendations,
+            legal ? toPublicTeaser(legal) : null,
+          );
+          const pdf = await renderReportPdf(reportData);
+          await sendReportEmail({
+            to: contact.email,
+            name: contact.name,
+            domain: audit.domain,
+            score: audit.score,
+            grade: audit.grade,
+            pdf,
+          });
+        }
+      } catch (e) {
+        console.error("Background lead work failed:", (e as Error).message);
+      }
     });
+
+    return response;
   } catch (e) {
     return NextResponse.json(
       { error: (e as Error).message || "No se pudo procesar la solicitud." },

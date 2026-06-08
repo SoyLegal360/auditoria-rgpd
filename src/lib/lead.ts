@@ -54,7 +54,8 @@ function auditToText(audit: AuditResult, contact: LeadContact): string {
 }
 
 // Cualificación de respaldo basada en reglas, por si no hay API key o falla la llamada.
-function fallbackQualify(audit: AuditResult): LeadQualification {
+// Exportada para que /api/lead pueda usarla en la fase rápida (antes de responder).
+export function fallbackQualify(audit: AuditResult): LeadQualification {
   const fails = audit.findings.filter((f) => f.severity === "fail");
   const warns = audit.findings.filter((f) => f.severity === "warn");
   const tier: LeadTier = audit.score < 55 ? "hot" : audit.score < 85 ? "warm" : "cold";

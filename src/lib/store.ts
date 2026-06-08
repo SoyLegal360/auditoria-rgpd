@@ -27,8 +27,8 @@ function rt(text: string) {
   return { rich_text: [{ text: { content: (text || "").slice(0, 1990) } }] };
 }
 
-// Guarda el lead como una fila en la base de datos de Notion (= persistencia + CRM).
-async function saveToNotion(r: LeadRecord): Promise<void> {
+// Guarda el lead como una fila en la base de datos de Notion y devuelve el page ID.
+async function saveToNotion(r: LeadRecord): Promise<string> {
   const res = await fetch("https://api.notion.com/v1/pages", {
     method: "POST",
     headers: {
@@ -60,6 +60,45 @@ async function saveToNotion(r: LeadRecord): Promise<void> {
   if (!res.ok) {
     throw new Error(`Notion ${res.status}: ${(await res.text()).slice(0, 300)}`);
   }
+  const data = await res.json() as { id: string };
+  return data.id;
+}
+
+// Actualiza un registro de Notion ya creado con el análisis completo de Claude.
+// Llamada en background (fase 2), por eso no lanza si falla — solo loguea.
+export async function updateLeadAnalysis(
+  pageId: string,
+  updates: {
+    qualification?: LeadQualification;
+    legalSummary?: string;
+  },
+): Promise<void> {
+  if (!NOTION_TOKEN) return;
+  const properties: Record<string, unknown> = {};
+
+  if (updates.qualification) {
+    properties["Prioridad"] = { select: { name: updates.qualification.tier } };
+    properties["Motivo comercial"] = rt(updates.qualification.tierReason);
+    properties["Recomendaciones"] = rt(updates.qualification.recommendations.join("\n"));
+    properties["Origen"] = { select: { name: updates.qualification.source } };
+  }
+  if (updates.legalSummary !== undefined) {
+    properties["Análisis textos legales"] = rt(updates.legalSummary);
+  }
+
+  const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${NOTION_TOKEN}`,
+      "Notion-Version": "2022-06-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ properties }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion PATCH ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
 }
 
 // Respaldo a fichero (uso local). En Vercel el FS del proyecto es de solo lectura
@@ -84,15 +123,17 @@ async function saveToFile(record: LeadRecord): Promise<void> {
   }
 }
 
-export async function saveLead(record: LeadRecord): Promise<void> {
+// Devuelve el Notion page ID (para el update posterior) o null si cayó a fichero.
+export async function saveLead(record: LeadRecord): Promise<string | null> {
   // Producción: Notion (persistencia + CRM). Si falla, no perdemos el lead → fichero.
   if (NOTION_TOKEN && NOTION_LEADS_DB) {
     try {
-      await saveToNotion(record);
-      return;
+      const pageId = await saveToNotion(record);
+      return pageId;
     } catch (e) {
       console.error("Notion falló, guardo en fichero como respaldo:", (e as Error).message);
     }
   }
   await saveToFile(record);
+  return null;
 }

@@ -380,10 +380,11 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
   );
 }
 
-interface LeadResponse {
-  summary: string;
-  recommendations: string[];
-}
+const SUBMIT_STEPS = [
+  "Verificando tu dominio…",
+  "Registrando tu solicitud…",
+  "Preparando tu informe…",
+];
 
 function LeadCapture({ url }: { url: string }) {
   const [email, setEmail] = useState("");
@@ -392,8 +393,19 @@ function LeadCapture({ url }: { url: string }) {
   const [consent, setConsent] = useState(false);
   const [marketing, setMarketing] = useState(false);
   const [sending, setSending] = useState(false);
+  const [submitStep, setSubmitStep] = useState(0);
   const [error, setError] = useState("");
-  const [done, setDone] = useState<LeadResponse | null>(null);
+  const [done, setDone] = useState(false);
+
+  // Animación de pasos durante el envío
+  useEffect(() => {
+    if (!sending) { setSubmitStep(0); return; }
+    const id = setInterval(
+      () => setSubmitStep((s) => Math.min(s + 1, SUBMIT_STEPS.length - 1)),
+      1500,
+    );
+    return () => clearInterval(id);
+  }, [sending]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -411,7 +423,7 @@ function LeadCapture({ url }: { url: string }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "No se pudo enviar.");
-      setDone(data as LeadResponse);
+      setDone(true);
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -424,23 +436,45 @@ function LeadCapture({ url }: { url: string }) {
       <div className="hero-pinstripe relative mt-8 overflow-hidden rounded-xl p-6 text-white sm:p-8">
         <div className="tech-grid" aria-hidden="true" />
         <div className="relative">
-          <p className="font-serif text-xl font-semibold">¡Gracias! Aquí tienes tu plan de acción</p>
-          <p className="mt-2 font-sans text-sm text-white/80">{done.summary}</p>
+          <div className="flex items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500 text-lg font-bold">✓</span>
+            <p className="font-serif text-xl font-semibold">¡Solicitud recibida!</p>
+          </div>
+          <p className="mt-3 font-sans text-sm text-white/80">
+            Estamos preparando tu informe RGPD personalizado. Lo recibirás en tu email{" "}
+            <span className="font-semibold text-gold">{email}</span> en los próximos minutos.
+          </p>
           <ul className="mt-4 space-y-2">
-            {done.recommendations.map((r, i) => (
+            {[
+              "📄 Informe PDF de marca con tu puntuación y análisis de textos legales",
+              "⚠️ Lista priorizada de fallos y cómo corregirlos",
+              "🎯 Plan de acción adaptado a tu tipo de negocio",
+            ].map((item, i) => (
               <li
                 key={i}
-                className="fade-up flex gap-3 rounded-lg bg-white/10 p-3 font-sans text-sm"
-                style={{ animationDelay: `${i * 60}ms` }}
+                className="fade-up flex gap-2 rounded-lg bg-white/10 px-3 py-2 font-sans text-sm"
+                style={{ animationDelay: `${i * 80}ms` }}
               >
-                <span className="font-bold text-gold">{i + 1}.</span>
-                <span>{r}</span>
+                {item}
               </li>
             ))}
           </ul>
-          <p className="mt-4 font-sans text-xs text-white/60">
-            Un experto de SoyLegal360 revisará tu caso y se pondrá en contacto contigo.
-          </p>
+          <div className="mt-5 border-t border-white/20 pt-4">
+            <p className="font-sans text-xs text-white/60">
+              ¿No ves el email? Revisa tu carpeta de spam o escríbenos a{" "}
+              <a href="mailto:hola@soylegal360.es" className="text-gold underline">
+                hola@soylegal360.es
+              </a>
+            </p>
+            <a
+              href="https://soylegal360.es/servicios-proteccion-de-datos/"
+              target="_blank"
+              rel="noopener"
+              className="mt-3 inline-block rounded-lg bg-gold px-4 py-2 font-sans text-sm font-bold text-navy transition hover:brightness-110"
+            >
+              Ver servicios de cumplimiento RGPD →
+            </a>
+          </div>
         </div>
       </div>
     );
@@ -454,7 +488,7 @@ function LeadCapture({ url }: { url: string }) {
           ¿Quieres el informe completo con plan de acción?
         </p>
         <p className="mt-1 font-sans text-sm text-white/80">
-          Déjanos tu email y un experto en RGPD te enviará las correcciones priorizadas para tu web.
+          Déjanos tu email y te enviamos el informe PDF con las correcciones priorizadas para tu web.
         </p>
 
         <form onSubmit={submit} className="mt-5 space-y-3 font-sans">
@@ -531,8 +565,11 @@ function LeadCapture({ url }: { url: string }) {
           </p>
           {error && <p className="text-sm font-medium text-red-300">{error}</p>}
           <button type="submit" disabled={sending} className="btn-gold w-full">
-            {sending ? "Enviando…" : "Recibir mi plan de acción"}
+            {sending ? SUBMIT_STEPS[submitStep] : "Recibir mi informe PDF"}
           </button>
+          {sending && (
+            <div className="scanbar" />
+          )}
         </form>
       </div>
     </div>
