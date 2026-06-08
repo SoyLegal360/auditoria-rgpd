@@ -6,6 +6,7 @@
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const RESEND_FROM = process.env.RESEND_FROM;
 const RESEND_BCC = process.env.RESEND_BCC; // opcional: copia interna a ventas
+const RESEND_REPLY_TO = process.env.RESEND_REPLY_TO; // opcional: dirección de respuesta
 
 export function emailEnabled(): boolean {
   return !!(RESEND_API_KEY && RESEND_FROM);
@@ -59,6 +60,7 @@ export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
       body: JSON.stringify({
         from: RESEND_FROM,
         to: [i.to],
+        ...(RESEND_REPLY_TO ? { reply_to: [RESEND_REPLY_TO] } : {}),
         ...(RESEND_BCC ? { bcc: [RESEND_BCC] } : {}),
         subject: `Tu diagnóstico RGPD de ${i.domain} · ${i.score}/100 (${i.grade})`,
         html: htmlBody(i),
