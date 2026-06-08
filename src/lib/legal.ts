@@ -161,6 +161,7 @@ Checklist por documento:
 Para FORMULARIOS valora la calidad del texto de consentimiento: que sea afirmativo e inequívoco, que el consentimiento de marketing esté separado del de contacto, y que enlace la política de privacidad.
 
 Reglas: evalúa SOLO lo que aparezca en los textos aportados; si un documento no se aportó o no es legible, márcalo. No inventes. Sé estricta pero justa. Español de España.
+IMPORTANTE para acotar la respuesta: en "elements" incluye ÚNICAMENTE los elementos con status "ausente" o "debil" (NO listes los "presente"). Mantén "_quote" y "_fix" en una sola frase breve.
 
 Devuelve SIEMPRE solo JSON válido con esta forma exacta:
 {"businessType":"ecommerce|servicios|informativa",
@@ -218,7 +219,7 @@ export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 2000,
+      max_tokens: 4000,
       temperature: 0.2,
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: buildUserContent(docsRaw, formsHeur, businessType) }],
@@ -264,7 +265,8 @@ export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null
     };
 
     return { businessType: parsed.businessType || businessType, docs, forms, source: "claude" };
-  } catch {
+  } catch (e) {
+    console.error("analyzeLegal falló:", (e as Error).message);
     return null;
   }
 }
