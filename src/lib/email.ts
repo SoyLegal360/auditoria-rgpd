@@ -41,8 +41,8 @@ function htmlBody(i: ReportEmailInput): string {
           <div style="font-size:13px;color:#5b6b7b;margin-top:2px">Calificación <strong style="color:${NAVY}">${i.grade}</strong></div>
         </div>
       </div>
-      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">¿Quieres dejar tu web 100% conforme? Con la <strong>Adaptación Web RGPD (desde 390€)</strong> nuestra abogada colegiada redacta y certifica tus textos legales a medida. Responde a este correo y te ayudamos.</p>
-      <p style="font-size:11px;color:#5b6b7b;line-height:1.5;margin:18px 0 0;border-top:1px solid #e4e8ee;padding-top:14px">Diagnóstico orientativo automático. No sustituye la revisión de una abogada colegiada ni constituye asesoramiento jurídico.<br/>SoyLegal360 · soylegal360.es</p>
+      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">¿Quieres dejar tu web 100% conforme? Con la <strong>Adaptación Web RGPD (desde 390€)</strong> nuestro equipo legal redacta y certifica tus textos legales a medida. Responde a este correo y te ayudamos.</p>
+      <p style="font-size:11px;color:#5b6b7b;line-height:1.5;margin:18px 0 0;border-top:1px solid #e4e8ee;padding-top:14px">Diagnóstico orientativo automático. No sustituye la revisión de un abogado ni constituye asesoramiento jurídico.<br/>SoyLegal360 · soylegal360.es</p>
     </div>
   </div></body></html>`;
 }

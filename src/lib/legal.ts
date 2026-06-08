@@ -59,7 +59,7 @@ export interface LegalTeaser {
 
 const MODEL = process.env.ANTHROPIC_MODEL || "claude-sonnet-4-6";
 const DISCLAIMER =
-  "Diagnóstico orientativo automático. No sustituye la revisión de una abogada colegiada.";
+  "Diagnóstico orientativo automático. No sustituye la revisión de un abogado.";
 
 const DOC_LABEL: Record<LegalDocType, string> = {
   privacidad: "Política de Privacidad",
@@ -165,7 +165,7 @@ export function inferBusinessType(homeHtml: string): LegalAnalysis["businessType
 }
 
 // ---------- Prompt de análisis ----------
-const SYSTEM_PROMPT = `Eres una abogada colegiada española experta en RGPD, LOPDGDD y LSSI-CE. Analizas los textos legales de una web para detectar deficiencias de cumplimiento, según el tipo de negocio.
+const SYSTEM_PROMPT = `Eres un abogado español experto en RGPD, LOPDGDD y LSSI-CE. Analizas los textos legales de una web para detectar deficiencias de cumplimiento, según el tipo de negocio.
 
 Checklist por documento:
 - POLÍTICA DE PRIVACIDAD (RGPD arts. 13-14, LOPDGDD): identidad y contacto del responsable; delegado de protección de datos (si aplica); finalidades del tratamiento; base jurídica de cada finalidad; categorías de datos; destinatarios/encargados (hosting, analítica, email mkt, pasarela); transferencias internacionales; plazos de conservación; derechos del interesado y cómo ejercerlos; derecho a reclamar ante la AEPD; origen de los datos si no se obtienen del interesado.
@@ -174,7 +174,7 @@ Checklist por documento:
 
 Para FORMULARIOS valora la calidad del texto de consentimiento: que sea afirmativo e inequívoco, que el consentimiento de marketing esté separado del de contacto, y que enlace la política de privacidad.
 
-Reglas: evalúa SOLO lo que aparezca en los textos aportados; si un documento no se aportó o no es legible, márcalo. No inventes. Sé estricta pero justa. Español de España.
+Reglas: evalúa SOLO lo que aparezca en los textos aportados; si un documento no se aportó o no es legible, márcalo. No inventes. Sé estricto pero justo. Español de España.
 IMPORTANTE para acotar la respuesta: en "elements" incluye ÚNICAMENTE los elementos con status "ausente" o "debil" (NO listes los "presente"). Mantén "_quote" y "_fix" en una sola frase breve.
 
 Devuelve SIEMPRE solo JSON válido con esta forma exacta:

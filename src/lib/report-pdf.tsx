@@ -3,11 +3,13 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
 import type { AuditResult } from "@/lib/audit";
 import type { LegalTeaser } from "@/lib/legal";
+import { LOGO_BLANCO_DATA_URI } from "@/lib/logo-data";
 
 // Paleta de marca SoyLegal360.
 const NAVY = "#06152c";
@@ -26,7 +28,8 @@ const GRADE_COLOR: Record<string, string> = {
 
 const styles = StyleSheet.create({
   page: { paddingTop: 0, paddingBottom: 64, fontFamily: "Helvetica", fontSize: 10, color: INK },
-  header: { backgroundColor: NAVY, paddingVertical: 22, paddingHorizontal: 40, marginBottom: 24 },
+  header: { backgroundColor: NAVY, paddingVertical: 18, paddingHorizontal: 40, marginBottom: 24 },
+  logo: { height: 30, width: "auto" },
   brand: { color: "#ffffff", fontSize: 15, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 },
   brandGold: { color: GOLD },
   headerSub: { color: "#9fb0c4", fontSize: 8.5, marginTop: 3, letterSpacing: 1.5, textTransform: "uppercase" },
@@ -132,10 +135,9 @@ function ReportDoc({ data }: { data: ReportData }) {
     >
       <Page size="A4" style={styles.page}>
         <View style={styles.header} fixed>
-          <Text style={styles.brand}>
-            SoyLegal<Text style={styles.brandGold}>360</Text>
-          </Text>
-          <Text style={styles.headerSub}>Diagnóstico de cumplimiento RGPD</Text>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image style={styles.logo} src={LOGO_BLANCO_DATA_URI} />
+          <Text style={[styles.headerSub, { marginTop: 8 }]}>Diagnóstico de cumplimiento RGPD</Text>
         </View>
 
         <View style={styles.body}>
@@ -209,7 +211,7 @@ function ReportDoc({ data }: { data: ReportData }) {
           <View style={styles.ctaBox}>
             <Text style={styles.ctaTitle}>¿Quieres dejar tu web 100% conforme?</Text>
             <Text style={styles.ctaText}>
-              Con la Adaptación Web RGPD (desde 390€) nuestra abogada colegiada redacta y certifica
+              Con la Adaptación Web RGPD (desde 390€) nuestro equipo legal redacta y certifica
               tus textos legales a medida: Aviso Legal, Política de Privacidad, Política de Cookies y
               consentimiento de formularios. Escríbenos a hola@soylegal360.es o responde a este correo.
             </Text>
@@ -217,7 +219,7 @@ function ReportDoc({ data }: { data: ReportData }) {
 
           <Text style={styles.disclaimer}>
             {data.legal?.disclaimer ||
-              "Diagnóstico orientativo automático. No sustituye la revisión de una abogada colegiada."}{" "}
+              "Diagnóstico orientativo automático. No sustituye la revisión de un abogado."}{" "}
             Este informe se ha generado de forma automatizada a partir del análisis de la web indicada
             y no constituye asesoramiento jurídico ni un dictamen vinculante.
           </Text>
