@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { analyzeLegal, toPublicTeaser } from "@/lib/legal";
 
 export const runtime = "nodejs";
-export const maxDuration = 30;
+export const maxDuration = 60;
 
 export async function POST(req: Request) {
   let url: string | undefined;

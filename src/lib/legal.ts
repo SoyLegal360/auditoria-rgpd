@@ -193,7 +193,7 @@ function buildUserContent(
 // ---------- Orquestador principal ----------
 export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null> {
   const url = normalizeUrl(rawUrl);
-  const home = await fetchPage(url, 15000);
+  const home = await fetchPage(url, 12000);
   if (!home) return null;
 
   const businessType = inferBusinessType(home.html);
@@ -205,8 +205,8 @@ export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null
     types.map(async (type) => {
       const link = links[type];
       if (!link) return { type, url: null as string | null, text: "", readable: false };
-      const page = await fetchPage(link);
-      const text = page ? stripHtml(page.html) : "";
+      const page = await fetchPage(link, 8000);
+      const text = page ? stripHtml(page.html).slice(0, 8000) : "";
       return { type, url: link, text, readable: !!page && text.length > 200 };
     }),
   );
@@ -218,7 +218,7 @@ export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 2500,
+      max_tokens: 2000,
       temperature: 0.2,
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: buildUserContent(docsRaw, formsHeur, businessType) }],
