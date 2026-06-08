@@ -98,28 +98,41 @@ async function fetchPage(url: string, timeoutMs = 10000): Promise<{ finalUrl: st
 
 // Descubre enlaces a los documentos legales a partir del HTML de la home.
 export function discoverLegalLinks(homeHtml: string, baseUrl: string): Partial<Record<LegalDocType, string>> {
-  const out: Partial<Record<LegalDocType, string>> = {};
+  const types: LegalDocType[] = ["cookies", "privacidad", "aviso-legal"];
+  // El href (la ruta) es la señal fuerte; el texto del enlace, la débil.
+  const hrefPat: Record<LegalDocType, RegExp> = {
+    cookies: /cookie/i,
+    privacidad: /privac/i, // privacidad / privacy (NO "protección de datos", que suele ser página de servicios)
+    "aviso-legal": /aviso[-_ ]?legal|legal[-_ ]?notice/i,
+  };
+  const textPat: Record<LegalDocType, RegExp> = {
+    cookies: /cookie/i,
+    privacidad: /pol[íi]tica de privacidad|privacy policy/i,
+    "aviso-legal": /aviso\s*legal|legal\s*notice/i,
+  };
+
+  const candidates: { type: LegalDocType; url: string; score: number }[] = [];
   const re = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
   let m: RegExpExecArray | null;
-  const patterns: { type: LegalDocType; rx: RegExp }[] = [
-    { type: "cookies", rx: /cookie/i },
-    { type: "privacidad", rx: /privacidad|privacy|protecci[óo]n de datos/i },
-    { type: "aviso-legal", rx: /aviso\s*legal|legal\s*notice|t[ée]rminos|condiciones/i },
-  ];
   while ((m = re.exec(homeHtml)) !== null) {
-    const href = m[1];
-    const text = stripHtml(m[2]);
-    const hay = `${href} ${text}`;
-    for (const p of patterns) {
-      if (out[p.type]) continue;
-      if (p.rx.test(hay)) {
-        try {
-          out[p.type] = new URL(href, baseUrl).href;
-        } catch {
-          /* href inválido */
-        }
-      }
+    let abs: string;
+    try {
+      abs = new URL(m[1], baseUrl).href;
+    } catch {
+      continue;
     }
+    const path = abs.toLowerCase();
+    const text = stripHtml(m[2]).toLowerCase();
+    for (const type of types) {
+      if (hrefPat[type].test(path)) candidates.push({ type, url: abs, score: 2 });
+      else if (textPat[type].test(text)) candidates.push({ type, url: abs, score: 1 });
+    }
+  }
+
+  const out: Partial<Record<LegalDocType, string>> = {};
+  for (const type of types) {
+    const best = candidates.filter((c) => c.type === type).sort((a, b) => b.score - a.score)[0];
+    if (best) out[type] = best.url;
   }
   return out;
 }
