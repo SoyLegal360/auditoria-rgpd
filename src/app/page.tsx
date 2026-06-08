@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { AuditResult, Finding, Severity } from "@/lib/audit";
+import type { LegalTeaser } from "@/lib/legal";
 
 const SEV_STYLE: Record<Severity, { dot: string; accent: string; label: string }> = {
   ok: { dot: "bg-emerald-500", accent: "finding-ok", label: "Correcto" },
@@ -211,6 +212,30 @@ function Report({ result }: { result: AuditResult }) {
   const fails = result.findings.filter((f) => f.severity === "fail").length;
   const warns = result.findings.filter((f) => f.severity === "warn").length;
 
+  const [legal, setLegal] = useState<{ loading: boolean; teaser: LegalTeaser | null }>({
+    loading: true,
+    teaser: null,
+  });
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch("/api/legal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: result.finalUrl || result.url }),
+        });
+        const data = await res.json();
+        if (!cancelled) setLegal({ loading: false, teaser: data.available ? data.teaser : null });
+      } catch {
+        if (!cancelled) setLegal({ loading: false, teaser: null });
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [result]);
+
   return (
     <section className="fade-up rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(6,21,44,0.12)] sm:p-8">
       <div className="flex flex-col items-center gap-6 border-b border-line pb-6 sm:flex-row sm:justify-between">
@@ -259,8 +284,76 @@ function Report({ result }: { result: AuditResult }) {
         })}
       </div>
 
+      <LegalTeaserSection loading={legal.loading} teaser={legal.teaser} />
+
       <LeadCapture url={result.finalUrl || result.url} />
     </section>
+  );
+}
+
+function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: LegalTeaser | null }) {
+  if (loading) {
+    return (
+      <div className="mt-8 rounded-xl border border-line bg-soft p-5">
+        <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
+          Análisis profundo de textos legales
+        </p>
+        <p className="mt-1 font-mono text-sm text-navy">
+          Leyendo e interpretando tus textos legales con IA…
+        </p>
+        <div className="scanbar mt-4" />
+      </div>
+    );
+  }
+  if (!teaser) return null;
+
+  return (
+    <div className="fade-up mt-8 rounded-xl border border-line bg-white p-5 sm:p-6">
+      <div className="flex items-baseline justify-between gap-3">
+        <h3 className="font-serif text-lg font-semibold text-navy">
+          Análisis profundo de tus textos legales
+        </h3>
+        <span className="font-sans text-[11px] uppercase tracking-wide text-muted">IA · orientativo</span>
+      </div>
+
+      <ul className="mt-4 space-y-3">
+        {teaser.docs.map((d) => {
+          const ok = d.found && d.readable && d.missingCount === 0;
+          return (
+            <li
+              key={d.type}
+              className={`finding ${ok ? "finding-ok" : d.found ? "finding-warn" : "finding-fail"} rounded-lg bg-soft p-3`}
+            >
+              <p className="font-serif font-medium text-ink">
+                {d.label}:{" "}
+                {!d.found ? (
+                  <span className="text-red-600">no encontrada en la web</span>
+                ) : !d.readable ? (
+                  <span className="text-amber-600">no se pudo leer (posible carga por JavaScript)</span>
+                ) : d.missingCount === 0 ? (
+                  <span className="text-emerald-600">sin deficiencias relevantes</span>
+                ) : (
+                  <span className="text-amber-700">
+                    le faltan {d.missingCount} elemento(s) obligatorio(s)
+                  </span>
+                )}
+              </p>
+              {d.missing.length > 0 && (
+                <p className="mt-1 font-sans text-sm text-muted">{d.missing.join(" · ")}</p>
+              )}
+            </li>
+          );
+        })}
+        {teaser.forms.issue && (
+          <li className="finding finding-fail rounded-lg bg-soft p-3">
+            <p className="font-serif font-medium text-ink">Formularios</p>
+            <p className="mt-1 font-sans text-sm text-muted">{teaser.forms.issue}</p>
+          </li>
+        )}
+      </ul>
+
+      <p className="mt-4 font-sans text-xs text-muted">{teaser.disclaimer}</p>
+    </div>
   );
 }
 

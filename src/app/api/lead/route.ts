@@ -2,9 +2,11 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { auditSite } from "@/lib/audit";
 import { qualifyLead, type LeadContact } from "@/lib/lead";
+import { analyzeLegal, toInternalSummary } from "@/lib/legal";
 import { saveLead, type LeadRecord } from "@/lib/store";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -49,7 +51,11 @@ export async function POST(req: Request) {
   try {
     // Re-auditamos en el servidor para no fiarnos del informe enviado por el cliente.
     const audit = await auditSite(url);
-    const qualification = await qualifyLead(audit, contact);
+    // Cualificación y análisis profundo de textos en paralelo (menos latencia).
+    const [qualification, legal] = await Promise.all([
+      qualifyLead(audit, contact),
+      analyzeLegal(url),
+    ]);
 
     const record: LeadRecord = {
       id: randomUUID(),
@@ -62,6 +68,7 @@ export async function POST(req: Request) {
         grade: audit.grade,
       },
       qualification,
+      legalSummary: legal ? toInternalSummary(legal) : undefined,
     };
 
     await saveLead(record);

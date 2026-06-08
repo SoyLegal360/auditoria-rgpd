@@ -15,6 +15,7 @@ export interface LeadRecord {
     grade: AuditResult["grade"];
   };
   qualification: LeadQualification;
+  legalSummary?: string; // análisis profundo de textos legales (interno, para la abogada)
 }
 
 const NOTION_TOKEN = process.env.NOTION_TOKEN;
@@ -49,6 +50,7 @@ async function saveToNotion(r: LeadRecord): Promise<void> {
         Recomendaciones: rt(r.qualification.recommendations.join("\n")),
         Origen: { select: { name: r.qualification.source } },
         Recibido: { date: { start: r.receivedAt } },
+        "Análisis textos legales": rt(r.legalSummary || ""),
       },
     }),
     signal: AbortSignal.timeout(10000),
