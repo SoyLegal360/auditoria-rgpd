@@ -1,10 +1,20 @@
 import { NextResponse } from "next/server";
 import { analyzeLegal, toPublicTeaser } from "@/lib/legal";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 export async function POST(req: Request) {
+  // Anti-abuso: el análisis profundo cuesta una llamada a Claude → limitamos por IP.
+  const rl = rateLimit(`legal:${clientIp(req)}`, 6, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Inténtalo de nuevo en un momento." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
+
   let url: string | undefined;
   try {
     url = (await req.json())?.url;
@@ -15,7 +25,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Falta el parámetro 'url'." }, { status: 400 });
   }
 
-  const analysis = await analyzeLegal(url);
+  // Modo público: salida ligera (sin citas/correcciones) → respuesta más rápida.
+  const analysis = await analyzeLegal(url, { mode: "public" });
   // Sin análisis (sin clave Claude, web no accesible o error) → 204-like: el front usa el check superficial.
   if (!analysis) return NextResponse.json({ available: false });
 

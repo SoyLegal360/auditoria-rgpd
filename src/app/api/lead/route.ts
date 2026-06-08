@@ -2,8 +2,11 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { auditSite } from "@/lib/audit";
 import { qualifyLead, type LeadContact } from "@/lib/lead";
-import { analyzeLegal, toInternalSummary } from "@/lib/legal";
+import { analyzeLegal, toInternalSummary, toPublicTeaser } from "@/lib/legal";
 import { saveLead, type LeadRecord } from "@/lib/store";
+import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { buildReportData, renderReportPdf } from "@/lib/report-pdf";
+import { sendReportEmail, emailEnabled } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -11,6 +14,14 @@ export const maxDuration = 60;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(req: Request) {
+  const rl = rateLimit(`lead:${clientIp(req)}`, 5, 60_000);
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: "Demasiadas solicitudes. Inténtalo de nuevo en un momento." },
+      { status: 429, headers: { "Retry-After": String(rl.retryAfter) } },
+    );
+  }
+
   let body: {
     email?: string;
     name?: string;
@@ -73,9 +84,34 @@ export async function POST(req: Request) {
 
     await saveLead(record);
 
+    // Informe PDF de marca + email (si Resend está configurado; si no, no-op silencioso).
+    let emailed = false;
+    if (emailEnabled()) {
+      try {
+        const reportData = buildReportData(
+          audit,
+          qualification.summary,
+          qualification.recommendations,
+          legal ? toPublicTeaser(legal) : null,
+        );
+        const pdf = await renderReportPdf(reportData);
+        emailed = await sendReportEmail({
+          to: contact.email,
+          name: contact.name,
+          domain: audit.domain,
+          score: audit.score,
+          grade: audit.grade,
+          pdf,
+        });
+      } catch (e) {
+        console.error("Generación/envío del informe falló:", (e as Error).message);
+      }
+    }
+
     // Al visitante solo le devolvemos lo público (no el tier comercial interno).
     return NextResponse.json({
       ok: true,
+      emailed,
       summary: qualification.summary,
       recommendations: qualification.recommendations,
     });

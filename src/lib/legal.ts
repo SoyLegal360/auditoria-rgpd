@@ -3,6 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 // ---------- Tipos ----------
 export type LegalDocType = "privacidad" | "cookies" | "aviso-legal";
 export type ElementStatus = "presente" | "ausente" | "debil";
+export type AnalyzeMode = "public" | "full";
 
 export interface LegalElement {
   id: string;
@@ -186,8 +187,15 @@ function buildUserContent(
   docs: { type: LegalDocType; url: string | null; text: string; readable: boolean }[],
   forms: ReturnType<typeof analyzeForms>,
   businessType: string,
+  mode: AnalyzeMode = "full",
 ): string {
   const parts: string[] = [`Tipo de negocio (inferido): ${businessType}`, ""];
+  if (mode === "public") {
+    parts.push(
+      'MODO RÁPIDO (teaser público): por cada elemento "ausente"/"debil" devuelve SOLO {id,label,status,severity}. OMITE por completo "_quote" y "_fix" y en forms omite "_notes". Sé conciso.',
+      "",
+    );
+  }
   parts.push("FORMULARIOS (heurística del HTML):");
   parts.push(`- ¿Hay formulario?: ${forms.hasForm}`);
   parts.push(`- ¿Casilla marcada por defecto (premarcada)?: ${forms.preCheckedConsent}`);
@@ -205,7 +213,11 @@ function buildUserContent(
 }
 
 // ---------- Orquestador principal ----------
-export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null> {
+export async function analyzeLegal(
+  rawUrl: string,
+  opts: { mode?: AnalyzeMode } = {},
+): Promise<LegalAnalysis | null> {
+  const mode: AnalyzeMode = opts.mode || "full";
   const url = normalizeUrl(rawUrl);
   const home = await fetchPage(url, 12000);
   if (!home) return null;
@@ -232,10 +244,11 @@ export async function analyzeLegal(rawUrl: string): Promise<LegalAnalysis | null
     const client = new Anthropic({ apiKey });
     const msg = await client.messages.create({
       model: MODEL,
-      max_tokens: 4000,
+      // El modo público omite citas/correcciones → mucha menos salida → mucha menos latencia.
+      max_tokens: mode === "public" ? 1500 : 4000,
       temperature: 0.2,
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: buildUserContent(docsRaw, formsHeur, businessType) }],
+      messages: [{ role: "user", content: buildUserContent(docsRaw, formsHeur, businessType, mode) }],
     });
     const text = msg.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
