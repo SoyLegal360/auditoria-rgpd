@@ -60,16 +60,16 @@ export default function Home() {
   return (
     <div className="flex min-h-screen flex-col text-ink">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[rgba(201,169,110,0.18)] bg-[#06152c]/70 backdrop-blur-md">
-        <div className="mx-auto flex min-h-[72px] max-w-5xl items-center justify-between gap-4 px-6">
+      <header className="sticky top-0 z-50 border-b border-[rgba(6,21,44,0.1)] bg-white/95 backdrop-blur-md">
+        <div className="mx-auto flex min-h-[82px] max-w-5xl items-center justify-between gap-4 px-6">
           <a href="https://soylegal360.es" aria-label="SoyLegal360 inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/soylegal360_logo_blanco_footer.svg" alt="SoyLegal360" className="block h-9 w-auto" />
+            <img src="/soylegal360_logo_color_header.svg" alt="SoyLegal360" className="block w-[150px] max-w-full" />
           </a>
           <nav className="flex items-center gap-5">
             <a
               href="https://soylegal360.es"
-              className="hidden font-sans text-sm font-bold text-white/80 transition-colors hover:text-gold sm:inline"
+              className="hidden font-sans text-sm font-bold text-[#06152c]/80 transition-colors hover:text-copper sm:inline"
             >
               Volver a soylegal360.es
             </a>
@@ -585,11 +585,7 @@ function Footer() {
           <img
             src="/soylegal360_logo_blanco_footer.svg"
             alt="SoyLegal360"
-            className="w-48 max-w-full"
-            style={{
-              filter:
-                "brightness(1.3) contrast(1.5) drop-shadow(0 0 3px rgba(255,255,255,.95)) drop-shadow(0 0 18px rgba(255,255,255,.3))",
-            }}
+            className="block w-40 max-w-full"
           />
           <p className="mt-4 font-sans text-sm text-[#dbe6f4]">
             Cumplimiento real para negocios reales.
