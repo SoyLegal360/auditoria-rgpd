@@ -64,7 +64,7 @@ export default function Home() {
         <div className="mx-auto flex min-h-[82px] max-w-5xl items-center justify-between gap-4 px-6">
           <a href="https://soylegal360.es" aria-label="SoyLegal360 inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/soylegal360_logo_color_horizontal.png" alt="SoyLegal360" className="block w-[150px] max-w-full" />
+            <img src="/soylegal360_logo_header.png" alt="SoyLegal360" className="block w-[150px] max-w-full" />
           </a>
           <nav className="flex items-center gap-5">
             <a
