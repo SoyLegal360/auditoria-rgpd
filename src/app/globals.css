@@ -7,14 +7,14 @@
   --gold: #c9a96e;
   --gold-soft: #d8be83;
   --copper: #c27b32;
-  --ink: #17213a;
-  --muted: #5d6980;
-  --line: #dfe4ee;
-  --soft: #f5f7fb;
+  --ink: #e7edf6;          /* texto principal sobre fondo oscuro */
+  --muted: #9fb0c8;        /* texto secundario sobre fondo oscuro */
+  --line: rgba(255, 255, 255, 0.12);
+  --soft: rgba(255, 255, 255, 0.05);
   --footer: #041022;
-  --shadow: 0 20px 60px rgba(6, 21, 44, 0.12);
+  --shadow: 0 24px 60px -24px rgba(0, 0, 0, 0.55);
 
-  --background: #ffffff;
+  --background: #06152c;
   --foreground: var(--ink);
 
   /* Familias del sistema (la web usa Georgia + Arial; Roboto solo en el wordmark) */
@@ -43,9 +43,63 @@
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(180deg, #06152c 0%, #07182f 45%, #040d1f 100%);
+  background-attachment: fixed;
   color: var(--ink);
   font-family: var(--font-serif);
+  position: relative;
+}
+
+/* Aurora tenue de fondo (legal-tech) */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(42% 52% at 18% 16%, rgba(201, 169, 110, 0.10), transparent 70%),
+    radial-gradient(46% 56% at 84% 22%, rgba(46, 86, 141, 0.20), transparent 70%),
+    radial-gradient(60% 60% at 50% 108%, rgba(13, 36, 71, 0.40), transparent 70%);
+  animation: aurora 20s ease-in-out infinite alternate;
+}
+
+/* Rejilla técnica que deriva lentamente */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.5;
+  background-image:
+    linear-gradient(rgba(201, 169, 110, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(201, 169, 110, 0.05) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(ellipse 85% 70% at 50% 20%, #000 25%, transparent 80%);
+  mask-image: radial-gradient(ellipse 85% 70% at 50% 20%, #000 25%, transparent 80%);
+  animation: grid-drift 38s linear infinite;
+}
+
+@keyframes aurora {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(0, -3%, 0) scale(1.06); }
+}
+@keyframes grid-drift {
+  to { background-position: 46px 46px, 46px 46px; }
+}
+
+/* ---------- Tarjetas glass (consola legal-tech) ---------- */
+.glass-card {
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(201, 169, 110, 0.18);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: var(--shadow);
+}
+.glass-soft {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 /* ---------- Patrones de marca reutilizables ---------- */
@@ -72,6 +126,8 @@ body {
 
 /* Botón dorado de marca */
 .btn-gold {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -97,6 +153,26 @@ body {
 .btn-gold:disabled {
   opacity: 0.6;
   cursor: default;
+}
+/* Destello que cruza el botón al pasar el ratón */
+.btn-gold::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: -75%;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(100deg, transparent, rgba(255, 255, 255, 0.55), transparent);
+  transform: skewX(-18deg);
+  opacity: 0;
+}
+.btn-gold:hover:not(:disabled)::after {
+  animation: shimmer 0.85s ease;
+}
+@keyframes shimmer {
+  0% { left: -75%; opacity: 0; }
+  20% { opacity: 1; }
+  100% { left: 130%; opacity: 0; }
 }
 
 /* Botón navy (secundario sobre fondo claro) */
@@ -230,7 +306,10 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .fade-up,
   .gold-glow,
-  .scanbar::after { animation: none; }
+  .scanbar::after,
+  .btn-gold::after { animation: none; }
+  body::before,
+  body::after { animation: none; }
   .score-ring circle.value { transition: none; }
   .fade-up { opacity: 1; transform: none; }
 }

@@ -12,11 +12,11 @@ const SEV_STYLE: Record<Severity, { dot: string; accent: string; label: string }
 };
 
 const GRADE_COLOR: Record<string, string> = {
-  A: "text-emerald-600",
-  B: "text-lime-600",
-  C: "text-amber-600",
-  D: "text-orange-600",
-  E: "text-red-600",
+  A: "text-emerald-400",
+  B: "text-lime-400",
+  C: "text-amber-400",
+  D: "text-orange-400",
+  E: "text-red-400",
 };
 
 const CATEGORIES: { key: Finding["category"]; label: string; icon: string }[] = [
@@ -58,18 +58,18 @@ export default function Home() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-white text-ink">
+    <div className="flex min-h-screen flex-col text-ink">
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-line bg-white/95 backdrop-blur-md">
+      <header className="sticky top-0 z-50 border-b border-[rgba(201,169,110,0.18)] bg-[#06152c]/70 backdrop-blur-md">
         <div className="mx-auto flex min-h-[72px] max-w-5xl items-center justify-between gap-4 px-6">
           <a href="https://soylegal360.es" aria-label="SoyLegal360 inicio">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/soylegal360_logo_color_header.svg" alt="SoyLegal360" className="block h-9 w-auto" />
+            <img src="/soylegal360_logo_blanco_footer.svg" alt="SoyLegal360" className="block h-9 w-auto" />
           </a>
           <nav className="flex items-center gap-5">
             <a
               href="https://soylegal360.es"
-              className="hidden font-sans text-sm font-bold text-navy transition-colors hover:text-copper sm:inline"
+              className="hidden font-sans text-sm font-bold text-white/80 transition-colors hover:text-gold sm:inline"
             >
               Volver a soylegal360.es
             </a>
@@ -114,7 +114,7 @@ export default function Home() {
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="tudominio.com"
-              className="h-[46px] flex-1 rounded-lg border border-white/20 bg-white px-4 font-mono text-base text-ink outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/40"
+              className="h-[46px] flex-1 rounded-lg border border-white/20 bg-white/10 px-4 font-mono text-base text-white placeholder-white/40 outline-none transition focus:border-gold focus:ring-2 focus:ring-gold/40"
             />
             <button type="submit" disabled={loading} className="btn-gold">
               {loading ? "Analizando…" : "Auditar gratis"}
@@ -150,11 +150,11 @@ function Scanner({ url }: { url: string }) {
   }, []);
 
   return (
-    <section className="fade-up rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(6,21,44,0.12)] sm:p-8">
+    <section className="fade-up glass-card rounded-2xl p-6 sm:p-8">
       <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
         Auditando
       </p>
-      <p className="mt-1 break-all font-mono text-lg text-navy">{url || "tu web"}</p>
+      <p className="mt-1 break-all font-mono text-lg text-white">{url || "tu web"}</p>
       <div className="scanbar mt-5" />
       <p className="mt-4 font-mono text-sm text-muted">{steps[step]}</p>
     </section>
@@ -199,7 +199,7 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="font-mono text-3xl font-bold text-navy">{shown}</span>
+        <span className="font-mono text-3xl font-bold text-white">{shown}</span>
         <span className={`font-serif text-lg font-black leading-none ${GRADE_COLOR[grade]}`}>
           {grade}
         </span>
@@ -237,13 +237,13 @@ function Report({ result }: { result: AuditResult }) {
   }, [result]);
 
   return (
-    <section className="fade-up rounded-2xl border border-line bg-white p-6 shadow-[0_20px_60px_rgba(6,21,44,0.12)] sm:p-8">
+    <section className="fade-up glass-card rounded-2xl p-6 sm:p-8">
       <div className="flex flex-col items-center gap-6 border-b border-line pb-6 sm:flex-row sm:justify-between">
         <div className="text-center sm:text-left">
           <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
             Informe RGPD de
           </p>
-          <p className="mt-1 break-all font-mono text-xl font-medium text-navy">{result.domain}</p>
+          <p className="mt-1 break-all font-mono text-xl font-medium text-white">{result.domain}</p>
           <p className="mt-2 font-sans text-sm text-muted">
             <span className="font-semibold text-red-600">{fails} fallos</span> ·{" "}
             <span className="font-semibold text-amber-600">{warns} mejorables</span>
@@ -265,7 +265,7 @@ function Report({ result }: { result: AuditResult }) {
                 {items.map((f, i) => (
                   <li
                     key={f.id}
-                    className={`finding ${SEV_STYLE[f.severity].accent} fade-up flex gap-3 rounded-lg bg-soft p-3`}
+                    className={`finding ${SEV_STYLE[f.severity].accent} fade-up flex gap-3 rounded-lg glass-soft p-3`}
                     style={{ animationDelay: `${i * 45}ms` }}
                   >
                     <span
@@ -310,7 +310,7 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
 
   if (loading) {
     return (
-      <div className="mt-8 rounded-xl border border-line bg-soft p-5">
+      <div className="mt-8 rounded-xl border border-line glass-soft p-5">
         <div className="flex items-baseline justify-between gap-3">
           <p className="font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
             Análisis profundo de textos legales
@@ -319,7 +319,7 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
             {step + 1}/{LEGAL_STEPS.length}
           </span>
         </div>
-        <p className="mt-1 font-mono text-sm text-navy">{LEGAL_STEPS[step]}</p>
+        <p className="mt-1 font-mono text-sm text-white">{LEGAL_STEPS[step]}</p>
         <div className="scanbar mt-4" />
         <p className="mt-3 font-sans text-xs text-muted">
           Nuestra IA está leyendo tus documentos legales reales. Mientras tanto, deja tu email abajo
@@ -331,9 +331,9 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
   if (!teaser) return null;
 
   return (
-    <div className="fade-up mt-8 rounded-xl border border-line bg-white p-5 sm:p-6">
+    <div className="fade-up mt-8 glass-card rounded-xl p-5 sm:p-6">
       <div className="flex items-baseline justify-between gap-3">
-        <h3 className="font-serif text-lg font-semibold text-navy">
+        <h3 className="font-serif text-lg font-semibold text-white">
           Análisis profundo de tus textos legales
         </h3>
         <span className="font-sans text-[11px] uppercase tracking-wide text-muted">IA · orientativo</span>
@@ -345,7 +345,7 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
           return (
             <li
               key={d.type}
-              className={`finding ${ok ? "finding-ok" : d.found ? "finding-warn" : "finding-fail"} rounded-lg bg-soft p-3`}
+              className={`finding ${ok ? "finding-ok" : d.found ? "finding-warn" : "finding-fail"} rounded-lg glass-soft p-3`}
             >
               <p className="font-serif font-medium text-ink">
                 {d.label}:{" "}
@@ -368,7 +368,7 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
           );
         })}
         {teaser.forms.issue && (
-          <li className="finding finding-fail rounded-lg bg-soft p-3">
+          <li className="finding finding-fail rounded-lg glass-soft p-3">
             <p className="font-serif font-medium text-ink">Formularios</p>
             <p className="mt-1 font-sans text-sm text-muted">{teaser.forms.issue}</p>
           </li>
@@ -470,7 +470,7 @@ function LeadCapture({ url }: { url: string }) {
               href="https://soylegal360.es/servicios-proteccion-de-datos/"
               target="_blank"
               rel="noopener"
-              className="mt-3 inline-block rounded-lg bg-gold px-4 py-2 font-sans text-sm font-bold text-navy transition hover:brightness-110"
+              className="mt-3 inline-block rounded-lg bg-gold px-4 py-2 font-sans text-sm font-bold text-white transition hover:brightness-110"
             >
               Ver servicios de cumplimiento RGPD →
             </a>
