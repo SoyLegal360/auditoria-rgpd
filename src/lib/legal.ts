@@ -2,7 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { safeFetch } from "@/lib/safe-fetch";
 
 // ---------- Tipos ----------
-export type LegalDocType = "privacidad" | "cookies" | "aviso-legal";
+export type LegalDocType = "privacidad" | "cookies" | "aviso-legal" | "condiciones";
 export type ElementStatus = "presente" | "ausente" | "debil";
 export type AnalyzeMode = "public" | "full";
 
@@ -73,6 +73,7 @@ const DOC_LABEL: Record<LegalDocType, string> = {
   privacidad: "Política de Privacidad",
   cookies: "Política de Cookies",
   "aviso-legal": "Aviso Legal",
+  condiciones: "Condiciones de Contratación",
 };
 
 // ---------- Utilidades ----------
@@ -106,17 +107,19 @@ async function fetchPage(url: string, timeoutMs = 10000): Promise<{ finalUrl: st
 
 // Descubre enlaces a los documentos legales a partir del HTML de la home.
 export function discoverLegalLinks(homeHtml: string, baseUrl: string): Partial<Record<LegalDocType, string>> {
-  const types: LegalDocType[] = ["cookies", "privacidad", "aviso-legal"];
+  const types: LegalDocType[] = ["cookies", "privacidad", "aviso-legal", "condiciones"];
   // El href (la ruta) es la señal fuerte; el texto del enlace, la débil.
   const hrefPat: Record<LegalDocType, RegExp> = {
     cookies: /cookie/i,
     privacidad: /privac/i, // privacidad / privacy (NO "protección de datos", que suele ser página de servicios)
     "aviso-legal": /aviso[-_ ]?legal|legal[-_ ]?notice/i,
+    condiciones: /condiciones|t[eé]rminos|terminos|\bterms\b|contrataci/i,
   };
   const textPat: Record<LegalDocType, RegExp> = {
     cookies: /cookie/i,
     privacidad: /pol[íi]tica de privacidad|privacy policy/i,
     "aviso-legal": /aviso\s*legal|legal\s*notice/i,
+    condiciones: /condiciones\s*(generales|de\s*(contrataci[óo]n|venta|uso))|t[eé]rminos\s*y\s*condiciones|terms\s*(and|&)\s*conditions/i,
   };
 
   const candidates: { type: LegalDocType; url: string; score: number }[] = [];
@@ -178,8 +181,11 @@ Checklist por documento:
 - POLÍTICA DE PRIVACIDAD (RGPD arts. 13-14, LOPDGDD): identidad y contacto del responsable; delegado de protección de datos (si aplica); finalidades del tratamiento; base jurídica de cada finalidad; categorías de datos; destinatarios/encargados (hosting, analítica, email mkt, pasarela); transferencias internacionales; plazos de conservación; derechos del interesado y cómo ejercerlos; derecho a reclamar ante la AEPD; origen de los datos si no se obtienen del interesado.
 - POLÍTICA DE COOKIES: clasificación y finalidad de las cookies; cookies de terceros; duración; cómo configurar/retirar el consentimiento; coherencia con el banner.
 - AVISO LEGAL (LSSI-CE art. 10): denominación y NIF del titular; domicilio; email de contacto; datos registrales si procede; condiciones de uso y propiedad intelectual.
+- CONDICIONES DE CONTRATACIÓN / T&C (SOLO ecommerce; LSSI arts. 27-28 y RDL 1/2007 de consumidores): proceso de compra paso a paso; precio con IVA y gastos de envío; medios de pago; plazos de entrega; derecho de desistimiento de 14 días y modelo de formulario; garantías legales; resolución de conflictos con enlace a la plataforma ODR de la UE; política de devoluciones/reembolsos.
 
 Para FORMULARIOS valora la calidad del texto de consentimiento: que sea afirmativo e inequívoco, que el consentimiento de marketing esté separado del de contacto, y que enlace la política de privacidad.
+
+Transversales a revisar cuando apliquen: tratamiento de datos de menores (art. 8 LOPDGDD: consentimiento ≥14 años y control de edad); categorías especiales de datos (art. 9 RGPD: salud, ideología, etc. → consentimiento explícito y cláusula reforzada); uso de píxeles/SDK de redes sociales o publicidad (Meta, TikTok, Google Ads…) que deben informarse en privacidad/cookies y requieren consentimiento previo.
 
 Reglas: evalúa SOLO lo que aparezca en los textos aportados; si un documento no se aportó o no es legible, márcalo. No inventes. Sé estricto pero justo. Español de España.
 IMPORTANTE para acotar la respuesta: en "elements" incluye ÚNICAMENTE los elementos con status "ausente" o "debil" (NO listes los "presente"). Mantén "_quote" y "_fix" en una sola frase breve.
@@ -247,13 +253,17 @@ export async function analyzeLegal(
   const links = discoverLegalLinks(home.html, home.finalUrl);
   const formsHeur = analyzeForms(home.html);
 
-  const types: LegalDocType[] = ["privacidad", "cookies", "aviso-legal"];
+  // T&C/condiciones solo aplican (y se exigen) a tiendas online.
+  const types: LegalDocType[] =
+    businessType === "ecommerce"
+      ? ["privacidad", "cookies", "aviso-legal", "condiciones"]
+      : ["privacidad", "cookies", "aviso-legal"];
   const docsRaw = await Promise.all(
     types.map(async (type) => {
       const link = links[type];
       if (!link) return { type, url: null as string | null, text: "", readable: false };
       const page = await fetchPage(link, 8000);
-      const text = page ? stripHtml(page.html).slice(0, 8000) : "";
+      const text = page ? stripHtml(page.html).slice(0, 15000) : "";
       return { type, url: link, text, readable: !!page && text.length > 200 };
     }),
   );

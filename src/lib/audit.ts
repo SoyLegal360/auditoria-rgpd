@@ -61,6 +61,25 @@ const TRACKERS: { name: string; re: RegExp }[] = [
   { name: "LinkedIn Insight", re: /snap\.licdn\.com/i },
 ];
 
+// Formularios externos inyectados por JS (no se ven con el check de <form> estático).
+const FORM_EMBEDS: { name: string; re: RegExp }[] = [
+  { name: "Tally", re: /tally\.so/i },
+  { name: "HubSpot", re: /hsforms\.net|hs-scripts\.com|js\.hubspot/i },
+  { name: "Typeform", re: /typeform\.com/i },
+  { name: "Calendly", re: /calendly\.com/i },
+  { name: "Mailchimp", re: /list-manage\.com|chimpstatic\.com|mailchimp\.com/i },
+  { name: "Google Forms", re: /docs\.google\.com\/forms/i },
+  { name: "Jotform", re: /jotform\.com/i },
+];
+
+// Recursos de terceros que cargan cookies/transferencias al pintar la página.
+const THIRD_PARTY_EMBEDS: { name: string; re: RegExp }[] = [
+  { name: "YouTube", re: /youtube\.com\/embed|youtube-nocookie\.com/i },
+  { name: "Google Maps", re: /google\.com\/maps\/embed|maps\.googleapis\.com/i },
+  { name: "Google Fonts", re: /fonts\.googleapis\.com|fonts\.gstatic\.com/i },
+  { name: "Vimeo", re: /player\.vimeo\.com/i },
+];
+
 async function txtRecords(name: string): Promise<string[]> {
   try {
     const records = await dns.resolveTxt(name);
@@ -68,6 +87,32 @@ async function txtRecords(name: string): Promise<string[]> {
   } catch {
     return [];
   }
+}
+
+// DKIM no tiene selector fijo → comprobación best-effort de los selectores más comunes
+// (TXT v=DKIM1 o un CNAME delegado). Si usa un selector personalizado, puede no detectarse.
+async function hasDkim(domain: string): Promise<boolean> {
+  const selectors = [
+    "default", "google", "selector1", "selector2", "k1", "s1", "s2",
+    "dkim", "mail", "resend", "hostingermail-a", "mandrill", "zoho",
+  ];
+  const checks = selectors.map(async (s) => {
+    const name = `${s}._domainkey.${domain}`;
+    try {
+      const txt = await dns.resolveTxt(name);
+      if (txt.some((c) => /v=DKIM1|p=[A-Za-z0-9]/i.test(c.join("")))) return true;
+    } catch {
+      /* sin TXT */
+    }
+    try {
+      const cname = await dns.resolveCname(name);
+      if (cname.length) return true;
+    } catch {
+      /* sin CNAME */
+    }
+    return false;
+  });
+  return (await Promise.all(checks)).some(Boolean);
 }
 
 const WEIGHT: Record<Severity, number> = { ok: 0, info: 0, warn: 6, fail: 14 };
@@ -123,6 +168,16 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
     else findings.push({ id: c.key, category: "seguridad", label: c.label, severity: "warn", detail: "No está presente. " + c.tip });
   }
 
+  if (finalUrl.startsWith("https://") && /\b(src|href)=["']http:\/\//i.test(html)) {
+    findings.push({
+      id: "mixed-content",
+      category: "seguridad",
+      label: "Contenido mixto (recursos por HTTP)",
+      severity: "warn",
+      detail: "La página va por HTTPS pero carga recursos por HTTP (contenido mixto). Debilita el cifrado y el navegador puede bloquearlos.",
+    });
+  }
+
   // ---------- COOKIES / TRACKERS ----------
   const setCookie = h.get("set-cookie");
   if (setCookie) {
@@ -144,6 +199,28 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
       label: "Banner de consentimiento de cookies",
       severity: hasBanner ? "ok" : "warn",
       detail: hasBanner ? "Se detectan indicios de un banner de cookies." : "No se detecta un banner de consentimiento claro, pese a usar cookies/rastreadores.",
+    });
+  }
+
+  const foundFormEmbeds = FORM_EMBEDS.filter((f) => f.re.test(html)).map((f) => f.name);
+  if (foundFormEmbeds.length) {
+    findings.push({
+      id: "form-embed",
+      category: "formularios",
+      label: "Formulario externo embebido",
+      severity: "warn",
+      detail: `Detectado: ${foundFormEmbeds.join(", ")}. Verifica que el formulario muestre la cláusula informativa, enlace a la política de privacidad y casilla de consentimiento NO premarcada (marketing separado).`,
+    });
+  }
+
+  const foundEmbeds = THIRD_PARTY_EMBEDS.filter((e) => e.re.test(html)).map((e) => e.name);
+  if (foundEmbeds.length) {
+    findings.push({
+      id: "embeds",
+      category: "cookies",
+      label: "Recursos de terceros que cargan cookies",
+      severity: "warn",
+      detail: `Detectado: ${foundEmbeds.join(", ")}. Estos recursos cargan contenido de terceros (y posibles cookies/transferencias) que pueden requerir consentimiento previo.`,
     });
   }
 
@@ -187,14 +264,39 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
     severity: spf ? "ok" : "warn",
     detail: spf ? "Registro SPF presente." : "Sin SPF: facilita que suplanten correos de tu dominio.",
   });
-  const dmarc = (await txtRecords("_dmarc." + domain)).find((r) => /v=DMARC1/i.test(r));
+  const dkim = await hasDkim(domain);
   findings.push({
-    id: "dmarc",
+    id: "dkim",
     category: "correo",
-    label: "DMARC (anti-suplantación de correo)",
-    severity: dmarc ? "ok" : "warn",
-    detail: dmarc ? "Registro DMARC presente." : "Sin DMARC: protección anti-phishing incompleta.",
+    label: "DKIM (firma del correo)",
+    severity: dkim ? "ok" : "warn",
+    detail: dkim
+      ? "Se detecta firma DKIM."
+      : "No se detecta DKIM con los selectores comunes. La firma DKIM autentica tus correos y mejora la entrega (puede usar un selector personalizado).",
   });
+
+  const dmarc = (await txtRecords("_dmarc." + domain)).find((r) => /v=DMARC1/i.test(r));
+  if (dmarc) {
+    const pol = (dmarc.match(/p=\s*(none|quarantine|reject)/i)?.[1] || "").toLowerCase();
+    findings.push({
+      id: "dmarc",
+      category: "correo",
+      label: "DMARC (anti-suplantación de correo)",
+      severity: pol === "quarantine" || pol === "reject" ? "ok" : "warn",
+      detail:
+        pol === "quarantine" || pol === "reject"
+          ? `DMARC activo en modo "${pol}".`
+          : 'DMARC presente pero en modo monitorización (p=none): no protege activamente. Conviene subir a "quarantine" o "reject".',
+    });
+  } else {
+    findings.push({
+      id: "dmarc",
+      category: "correo",
+      label: "DMARC (anti-suplantación de correo)",
+      severity: "warn",
+      detail: "Sin DMARC: protección anti-phishing incompleta.",
+    });
+  }
 
   // ---------- PUNTUACIÓN ----------
   const penalty = findings.reduce((acc, f) => acc + WEIGHT[f.severity], 0);
