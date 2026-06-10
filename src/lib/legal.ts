@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { safeFetch } from "@/lib/safe-fetch";
 
 // ---------- Tipos ----------
 export type LegalDocType = "privacidad" | "cookies" | "aviso-legal";
@@ -92,13 +93,12 @@ function stripHtml(html: string): string {
 
 async function fetchPage(url: string, timeoutMs = 10000): Promise<{ finalUrl: string; html: string } | null> {
   try {
-    const res = await fetch(url, {
-      redirect: "follow",
+    const { res, finalUrl } = await safeFetch(url, {
       headers: { "User-Agent": "SoyLegal360-Auditor/1.0 (+https://soylegal360.es)" },
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) return null;
-    return { finalUrl: res.url || url, html: await res.text() };
+    return { finalUrl, html: await res.text() };
   } catch {
     return null;
   }

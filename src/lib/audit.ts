@@ -1,5 +1,6 @@
 import { promises as dns } from "dns";
 import tls from "tls";
+import { safeFetch } from "@/lib/safe-fetch";
 
 export type Severity = "ok" | "warn" | "fail" | "info";
 
@@ -79,12 +80,12 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
   let html = "";
   let finalUrl = url;
   try {
-    res = await fetch(url, {
-      redirect: "follow",
+    const result = await safeFetch(url, {
       headers: { "User-Agent": "SoyLegal360-Auditor/1.0 (+https://soylegal360.es)" },
       signal: AbortSignal.timeout(15000),
     });
-    finalUrl = res.url || url;
+    res = result.res;
+    finalUrl = result.finalUrl;
     html = await res.text();
   } catch (e) {
     throw new Error("No se pudo acceder a la web. Revisa que la URL sea correcta y esté online. (" + (e as Error).message + ")");
