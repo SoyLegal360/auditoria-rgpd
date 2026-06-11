@@ -54,7 +54,7 @@ async function getCertExpiry(hostname: string): Promise<Date | null> {
   });
 }
 
-const TRACKERS: { name: string; re: RegExp }[] = [
+export const TRACKERS: { name: string; re: RegExp }[] = [
   { name: "Google Analytics", re: /gtag\(|google-analytics\.com|G-[A-Z0-9]{6,}|UA-\d{4,}-\d+/i },
   { name: "Google Tag Manager", re: /googletagmanager\.com|GTM-[A-Z0-9]+/i },
   { name: "Meta / Facebook Pixel", re: /connect\.facebook\.net|fbq\(/i },
@@ -65,7 +65,7 @@ const TRACKERS: { name: string; re: RegExp }[] = [
 ];
 
 // Formularios externos inyectados por JS (no se ven con el check de <form> estático).
-const FORM_EMBEDS: { name: string; re: RegExp }[] = [
+export const FORM_EMBEDS: { name: string; re: RegExp }[] = [
   { name: "Tally", re: /tally\.so/i },
   { name: "HubSpot", re: /hsforms\.net|hs-scripts\.com|js\.hubspot/i },
   { name: "Typeform", re: /typeform\.com/i },

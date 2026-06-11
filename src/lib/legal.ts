@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { safeFetch } from "@/lib/safe-fetch";
+import { TRACKERS, FORM_EMBEDS } from "@/lib/audit";
 
 // ---------- Tipos ----------
 export type LegalDocType = "privacidad" | "cookies" | "aviso-legal" | "condiciones";
@@ -174,18 +175,85 @@ export function inferBusinessType(homeHtml: string): LegalAnalysis["businessType
   return "informativa";
 }
 
+// Señales reales de la home (título, descripción, encabezados) para que Claude
+// clasifique negocio y SECTOR con evidencia, no solo con el regex anterior.
+export function extractHomeSignals(html: string): string {
+  const title = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1] || "";
+  const desc =
+    html.match(/<meta[^>]+name=["']description["'][^>]*content=["']([^"']*)["']/i)?.[1] ||
+    html.match(/<meta[^>]+content=["']([^"']*)["'][^>]*name=["']description["']/i)?.[1] ||
+    "";
+  const heads = [...html.matchAll(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/gi)]
+    .map((m) => stripHtml(m[1]))
+    .filter(Boolean);
+  return [stripHtml(title), stripHtml(desc), ...heads].filter(Boolean).join(" · ").slice(0, 600);
+}
+
+// Enlace a la página de contacto (donde suele vivir el formulario real).
+export function discoverContactLink(homeHtml: string, baseUrl: string): string | null {
+  const re = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  let m: RegExpExecArray | null;
+  let best: { url: string; score: number } | null = null;
+  while ((m = re.exec(homeHtml)) !== null) {
+    let abs: string;
+    try {
+      abs = new URL(m[1], baseUrl).href;
+    } catch {
+      continue;
+    }
+    const score = /cont[aá]ct/i.test(abs.toLowerCase())
+      ? 2
+      : /cont[aá]ct/i.test(stripHtml(m[2]))
+        ? 1
+        : 0;
+    if (score && (!best || score > best.score)) best = { url: abs, score };
+  }
+  return best?.url || null;
+}
+
+// Bloques <form>…</form> reales (home + contacto) con sus señales POR FORMULARIO,
+// para que Claude evalúe la cláusula de primera capa sobre el texto del formulario
+// y no sobre la página entera (una casilla del banner de cookies no cuenta).
+interface FormBlock {
+  page: "home" | "contacto";
+  checkboxes: number;
+  preChecked: boolean;
+  linksPrivacy: boolean;
+  text: string;
+}
+
+function extractFormBlocks(html: string, page: FormBlock["page"], max = 3): FormBlock[] {
+  const blocks = html.match(/<form\b[\s\S]*?<\/form>/gi) || [];
+  return blocks.slice(0, max).map((b) => {
+    const checkboxes = b.match(/<input\b[^>]*type=["']?checkbox["']?[^>]*>/gi) || [];
+    return {
+      page,
+      checkboxes: checkboxes.length,
+      preChecked: checkboxes.some((c) => /\bchecked\b/i.test(c)),
+      linksPrivacy: /privac/i.test(b),
+      text: stripHtml(b).slice(0, 1200),
+    };
+  });
+}
+
 // ---------- Prompt de análisis ----------
 const SYSTEM_PROMPT = `Eres un abogado español experto en RGPD, LOPDGDD y LSSI-CE. Analizas los textos legales de una web para detectar deficiencias de cumplimiento, según el tipo de negocio.
 
 Checklist por documento:
-- POLÍTICA DE PRIVACIDAD (RGPD arts. 13-14, LOPDGDD): identidad y contacto del responsable; delegado de protección de datos (si aplica); finalidades del tratamiento; base jurídica de cada finalidad; categorías de datos; destinatarios/encargados (hosting, analítica, email mkt, pasarela); transferencias internacionales; plazos de conservación; derechos del interesado y cómo ejercerlos; derecho a reclamar ante la AEPD; origen de los datos si no se obtienen del interesado.
+- POLÍTICA DE PRIVACIDAD (RGPD arts. 13-14, LOPDGDD): identidad y contacto del responsable; delegado de protección de datos (SOLO según las reglas de abajo); finalidades del tratamiento; base jurídica de cada finalidad; categorías de datos; destinatarios/encargados (hosting, analítica, email mkt, pasarela); transferencias internacionales (SOLO según las reglas de abajo); plazos de conservación; derechos del interesado y cómo ejercerlos; derecho a reclamar ante la AEPD; origen de los datos si no se obtienen del interesado.
 - POLÍTICA DE COOKIES: clasificación y finalidad de las cookies; cookies de terceros; duración; cómo configurar/retirar el consentimiento; coherencia con el banner.
 - AVISO LEGAL (LSSI-CE art. 10): denominación y NIF del titular; domicilio; email de contacto; datos registrales si procede; condiciones de uso y propiedad intelectual.
 - CONDICIONES DE CONTRATACIÓN / T&C (SOLO ecommerce; LSSI arts. 27-28 y RDL 1/2007 de consumidores): proceso de compra paso a paso; precio con IVA y gastos de envío; medios de pago; plazos de entrega; derecho de desistimiento de 14 días y modelo de formulario; garantías legales; resolución de conflictos con enlace a la plataforma ODR de la UE; política de devoluciones/reembolsos.
 
-Para FORMULARIOS valora la calidad del texto de consentimiento: que sea afirmativo e inequívoco, que el consentimiento de marketing esté separado del de contacto, y que enlace la política de privacidad.
+REGLAS DE EXIGENCIA CONDICIONADA (para NO exigir de más):
+- DPD (art. 37 RGPD y art. 34.1 LOPDGDD): exige el delegado de protección de datos SOLO si el negocio encaja en los obligados del art. 34.1 LOPDGDD (colegios profesionales, centros docentes, centros sanitarios, aseguradoras, entidades financieras o de inversión, distribuidoras/comercializadoras de energía, operadores de telecomunicaciones/ISP, prestadores que elaboren perfiles o publicidad a gran escala, empresas de seguridad privada…) o si trata categorías especiales del art. 9 a gran escala. Si no hay indicios de eso, la ausencia de mención al DPD NO es una deficiencia: NO la incluyas. Si hay indicios razonables pero no concluyentes, inclúyelo con status "debil", severity "baja" y label "Delegado de Protección de Datos (verificar si aplica)".
+- TRANSFERENCIAS INTERNACIONALES (arts. 44-49 RGPD): exígelas SOLO si hay indicios en los datos aportados (rastreadores detectados en la web, o encargados/proveedores extracomunitarios mencionados en los propios textos: Google, Meta, Mailchimp, AWS…). Sin indicios, su ausencia NO es deficiencia.
+
+Para FORMULARIOS, evalúa los bloques de formulario reales aportados contra la cláusula informativa de primera capa (criterio AEPD): identidad del responsable; finalidad; base jurídica; derechos; enlace a la política de privacidad (segunda capa); consentimiento afirmativo con casilla NO premarcada; consentimiento de marketing en casilla SEPARADA de la de contacto. Si el formulario es un embed externo cargado por JavaScript (Tally, HubSpot…), NO lo evalúes como deficiencia: indícalo en "publicIssue"/"_notes" como pendiente de revisión manual (no es evaluable sin navegador).
 
 Transversales a revisar cuando apliquen: tratamiento de datos de menores (art. 8 LOPDGDD: consentimiento ≥14 años y control de edad); categorías especiales de datos (art. 9 RGPD: salud, ideología, etc. → consentimiento explícito y cláusula reforzada); uso de píxeles/SDK de redes sociales o publicidad (Meta, TikTok, Google Ads…) que deben informarse en privacidad/cookies y requieren consentimiento previo.
+
+Usa las SEÑALES DE LA HOME para confirmar o corregir el tipo de negocio y deducir el SECTOR (sanitario, educación, finanzas, infancia…); aplica los transversales y la regla del DPD según ese sector.
 
 Reglas: evalúa SOLO lo que aparezca en los textos aportados; si un documento no se aportó o no es legible, márcalo. No inventes. Sé estricto pero justo. Español de España.
 IMPORTANTE para acotar la respuesta: en "elements" incluye ÚNICAMENTE los elementos con status "ausente" o "debil" (NO listes los "presente"). Mantén "_quote" y "_fix" en una sola frase breve.
@@ -201,25 +269,42 @@ function buildUserContent(
   forms: ReturnType<typeof analyzeForms>,
   businessType: string,
   mode: AnalyzeMode = "full",
+  ctx: { homeSignals: string; trackers: string[]; formBlocks: FormBlock[]; formEmbeds: string[] },
 ): string {
-  const parts: string[] = [`Tipo de negocio (inferido): ${businessType}`, ""];
+  const parts: string[] = [`Tipo de negocio (inferido por regex, corrígelo si las señales dicen otra cosa): ${businessType}`, ""];
   if (mode === "public") {
     parts.push(
       'MODO RÁPIDO (teaser público): por cada elemento "ausente"/"debil" devuelve SOLO {id,label,status,severity}. OMITE por completo "_quote" y "_fix" y en forms omite "_notes". Sé conciso.',
       "",
     );
   }
+  parts.push(`SEÑALES DE LA HOME: ${ctx.homeSignals || "(sin señales)"}`);
+  parts.push(`RASTREADORES DETECTADOS EN LA WEB: ${ctx.trackers.length ? ctx.trackers.join(", ") : "ninguno"}`);
+  parts.push("");
   parts.push("FORMULARIOS (heurística del HTML):");
   parts.push(`- ¿Hay formulario?: ${forms.hasForm}`);
   parts.push(`- ¿Casilla marcada por defecto (premarcada)?: ${forms.preCheckedConsent}`);
   parts.push(`- ¿Formulario sin casilla de consentimiento?: ${forms.noConsentCheckbox}`);
   parts.push(`- Texto de consentimiento detectado: "${forms.consentText || "(ninguno)"}"`);
+  if (ctx.formEmbeds.length) {
+    parts.push(
+      `- Formulario externo embebido por JavaScript: ${ctx.formEmbeds.join(", ")} (NO evaluable sin navegador → pendiente de revisión manual, no deficiencia).`,
+    );
+  }
+  for (const [i, fb] of ctx.formBlocks.entries()) {
+    parts.push("");
+    parts.push(
+      `--- FORMULARIO ${i + 1} (página: ${fb.page} · casillas: ${fb.checkboxes} · premarcada: ${fb.preChecked} · enlaza privacidad: ${fb.linksPrivacy}) ---`,
+    );
+    parts.push(fb.text || "(formulario sin texto visible)");
+  }
   parts.push("");
   for (const d of docs) {
     parts.push(`=== DOCUMENTO: ${DOC_LABEL[d.type]} (${d.url || "no encontrado"}) ===`);
     if (!d.url) parts.push("(No se encontró enlace a este documento en la home.)");
     else if (!d.readable) parts.push("(No se pudo leer el contenido — posible carga por JavaScript.)");
-    else parts.push(d.text.slice(0, 12000));
+    // La privacidad es el documento largo: cap mayor para no cortar conservación/derechos/AEPD.
+    else parts.push(d.text.slice(0, d.type === "privacidad" ? 20000 : 12000));
     parts.push("");
   }
   return parts.join("\n");
@@ -252,21 +337,44 @@ export async function analyzeLegal(
   const businessType = inferBusinessType(home.html);
   const links = discoverLegalLinks(home.html, home.finalUrl);
   const formsHeur = analyzeForms(home.html);
+  const homeSignals = extractHomeSignals(home.html);
+  const trackers = TRACKERS.filter((t) => t.re.test(home.html)).map((t) => t.name);
 
   // T&C/condiciones solo aplican (y se exigen) a tiendas online.
   const types: LegalDocType[] =
     businessType === "ecommerce"
       ? ["privacidad", "cookies", "aviso-legal", "condiciones"]
       : ["privacidad", "cookies", "aviso-legal"];
-  const docsRaw = await Promise.all(
-    types.map(async (type) => {
-      const link = links[type];
-      if (!link) return { type, url: null as string | null, text: "", readable: false };
-      const page = await fetchPage(link, 8000);
-      const text = page ? stripHtml(page.html).slice(0, 15000) : "";
-      return { type, url: link, text, readable: !!page && text.length > 200 };
-    }),
-  );
+
+  // La página de contacto (formulario real) se descarga en paralelo con los documentos.
+  const contactPromise = (async () => {
+    const link = discoverContactLink(home.html, home.finalUrl);
+    if (!link || link.replace(/\/+$/, "") === home.finalUrl.replace(/\/+$/, "")) return null;
+    return fetchPage(link, 8000);
+  })();
+
+  const [docsRaw, contact] = await Promise.all([
+    Promise.all(
+      types.map(async (type) => {
+        const link = links[type];
+        if (!link) return { type, url: null as string | null, text: "", readable: false };
+        const page = await fetchPage(link, 8000);
+        // La privacidad es el documento largo → cap de descarga mayor.
+        const cap = type === "privacidad" ? 22000 : 15000;
+        const text = page ? stripHtml(page.html).slice(0, cap) : "";
+        return { type, url: link, text, readable: !!page && text.length > 200 };
+      }),
+    ),
+    contactPromise,
+  ]);
+
+  const formBlocks = [
+    ...extractFormBlocks(home.html, "home"),
+    ...(contact ? extractFormBlocks(contact.html, "contacto") : []),
+  ].slice(0, 3);
+  const formEmbeds = FORM_EMBEDS.filter(
+    (f) => f.re.test(home.html) || (contact ? f.re.test(contact.html) : false),
+  ).map((f) => f.name);
 
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) return null; // sin Claude no hay análisis profundo (la UI usa el check superficial)
@@ -279,7 +387,17 @@ export async function analyzeLegal(
       max_tokens: mode === "public" ? 1500 : 4000,
       temperature: 0.2,
       system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
-      messages: [{ role: "user", content: buildUserContent(docsRaw, formsHeur, businessType, mode) }],
+      messages: [
+        {
+          role: "user",
+          content: buildUserContent(docsRaw, formsHeur, businessType, mode, {
+            homeSignals,
+            trackers,
+            formBlocks,
+            formEmbeds,
+          }),
+        },
+      ],
     });
     const text = msg.content
       .filter((b): b is Anthropic.TextBlock => b.type === "text")
