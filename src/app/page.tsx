@@ -29,6 +29,47 @@ const CATEGORIES: { key: Finding["category"]; label: string; icon: string }[] = 
 
 const TECH_CHIPS = ["HTTPS · SSL", "Cookies", "Rastreadores", "Textos legales", "SPF · DMARC"];
 
+type FindingRisk = "critico" | "alto" | "medio" | "bajo";
+interface FindingMeta { article: string; fix: string; risk: FindingRisk }
+const FINDING_META: Partial<Record<string, FindingMeta>> = {
+  "https":                     { article: "Art. 32 RGPD",               risk: "critico", fix: "Activa HTTPS en tu hosting (certificado SSL gratuito con Let's Encrypt). Es imprescindible." },
+  "ssl-exp":                   { article: "Art. 32 RGPD",               risk: "alto",    fix: "Renueva el certificado SSL desde el panel de tu hosting antes de que caduque." },
+  "strict-transport-security": { article: "Art. 32 RGPD",               risk: "medio",   fix: "Añade la cabecera HTTP: Strict-Transport-Security: max-age=31536000; includeSubDomains" },
+  "x-content-type-options":    { article: "Art. 32 RGPD",               risk: "bajo",    fix: "Añade la cabecera HTTP: X-Content-Type-Options: nosniff" },
+  "content-security-policy":   { article: "Art. 32 RGPD",               risk: "medio",   fix: "Configura una Content-Security-Policy básica para restringir scripts no autorizados." },
+  "referrer-policy":           { article: "Art. 32 RGPD",               risk: "bajo",    fix: "Añade la cabecera HTTP: Referrer-Policy: strict-origin-when-cross-origin" },
+  "mixed-content":             { article: "Art. 32 RGPD",               risk: "medio",   fix: "Cambia todas las URLs de recursos (imágenes, scripts, CSS) de http:// a https://." },
+  "cookies-load":              { article: "Art. 22 LSSI / RGPD",        risk: "alto",    fix: "Bloquea las cookies no técnicas hasta que el usuario las acepte en el banner." },
+  "trackers":                  { article: "Art. 6 RGPD / Art. 22 LSSI", risk: "critico", fix: "Configura tu gestor de consentimiento (Cookiebot, CookieYes…) para bloquear rastreadores hasta el consentimiento." },
+  "banner":                    { article: "Art. 22 LSSI / Guía AEPD",   risk: "alto",    fix: "Implementa un banner con opciones Aceptar, Rechazar y Configurar de igual visibilidad (Guía AEPD 2023)." },
+  "form-embed":                { article: "Art. 13 RGPD",               risk: "medio",   fix: "Comprueba que el formulario externo muestre cláusula informativa y casilla de consentimiento no premarcada." },
+  "embeds":                    { article: "Arts. 6 y 49 RGPD",          risk: "medio",   fix: "Usa versiones sin cookies (p.ej. youtube-nocookie.com) o bloquea el embed hasta el consentimiento." },
+  "privacidad":                { article: "Art. 13 RGPD",               risk: "critico", fix: "Redacta y publica una Política de Privacidad conforme al art. 13 RGPD (responsable, base jurídica, derechos…)." },
+  "aviso-legal":               { article: "Art. 10 LSSI-CE",            risk: "alto",    fix: "Añade el Aviso Legal con denominación, NIF, domicilio, email de contacto y Registro Mercantil." },
+  "cookies-pol":               { article: "Art. 22 LSSI-CE",            risk: "alto",    fix: "Publica una Política de Cookies con el inventario completo (nombre, tipo, finalidad, duración de cada cookie)." },
+  "form-consent":              { article: "Art. 7 RGPD",                risk: "alto",    fix: "Añade una casilla no premarcada con enlace a la política de privacidad en cada formulario de recogida de datos." },
+  "spf":                       { article: "RFC 7208 / Seg. correo",     risk: "medio",   fix: 'Añade un registro TXT SPF en tu DNS: v=spf1 include:[tu-proveedor].com ~all' },
+  "dkim":                      { article: "RFC 6376 / Seg. correo",     risk: "medio",   fix: "Activa DKIM en el panel de tu proveedor de correo (Hostinger → Email → Configuración DKIM)." },
+  "dmarc":                     { article: "RFC 7489 / Seg. correo",     risk: "bajo",    fix: 'Crea el registro DNS: _dmarc.tudominio.com TXT "v=DMARC1; p=quarantine; rua=mailto:admin@tudominio.com"' },
+};
+const RISK_LABEL: Record<FindingRisk, string> = {
+  critico: "Riesgo crítico", alto: "Riesgo alto", medio: "Riesgo medio", bajo: "Riesgo bajo",
+};
+const RISK_STYLE: Record<FindingRisk, string> = {
+  critico: "bg-red-500/20 text-red-400",
+  alto:    "bg-orange-400/15 text-orange-400",
+  medio:   "bg-amber-400/15 text-amber-400",
+  bajo:    "bg-zinc-500/15 text-zinc-400",
+};
+const GRADE_VERDICT: Record<string, string> = {
+  A: "Excelente nivel de cumplimiento",
+  B: "Buen cumplimiento con mejoras pendientes",
+  C: "Cumplimiento parcial — corrige los fallos detectados",
+  D: "Cumplimiento insuficiente — riesgo de sanción",
+  E: "Cumplimiento muy deficiente — actúa de inmediato",
+};
+const RISK_ORDER: Record<FindingRisk, number> = { critico: 0, alto: 1, medio: 2, bajo: 3 };
+
 export default function Home() {
   const [url, setUrl] = useState("");
   const [loading, setLoading] = useState(false);
@@ -211,6 +252,15 @@ function ScoreRing({ score, grade }: { score: number; grade: string }) {
 function Report({ result }: { result: AuditResult }) {
   const fails = result.findings.filter((f) => f.severity === "fail").length;
   const warns = result.findings.filter((f) => f.severity === "warn").length;
+  const priorities = result.findings
+    .filter((f) => f.severity === "fail" || f.severity === "warn")
+    .sort((a, b) => {
+      const ra = RISK_ORDER[FINDING_META[a.id]?.risk ?? "bajo"];
+      const rb = RISK_ORDER[FINDING_META[b.id]?.risk ?? "bajo"];
+      if (ra !== rb) return ra - rb;
+      return a.severity === "fail" ? -1 : 1;
+    })
+    .slice(0, 3);
 
   const [legal, setLegal] = useState<{ loading: boolean; teaser: LegalTeaser | null }>({
     loading: true,
@@ -244,13 +294,36 @@ function Report({ result }: { result: AuditResult }) {
             Informe RGPD de
           </p>
           <p className="mt-1 break-all font-mono text-xl font-medium text-white">{result.domain}</p>
+          <p className="mt-1 font-sans text-xs text-muted">{GRADE_VERDICT[result.grade]}</p>
           <p className="mt-2 font-sans text-sm text-muted">
-            <span className="font-semibold text-red-600">{fails} fallos</span> ·{" "}
-            <span className="font-semibold text-amber-600">{warns} mejorables</span>
+            <span className="font-semibold text-red-400">{fails} fallos</span> ·{" "}
+            <span className="font-semibold text-amber-400">{warns} mejorables</span>
           </p>
         </div>
         <ScoreRing score={result.score} grade={result.grade} />
       </div>
+
+      {priorities.length > 0 && (
+        <div className="mt-6 rounded-xl glass-soft border border-line p-4">
+          <p className="eyebrow mb-3">Acciones prioritarias</p>
+          <ol className="space-y-2.5">
+            {priorities.map((f, i) => {
+              const meta = FINDING_META[f.id];
+              return (
+                <li key={f.id} className="flex items-start gap-2.5 font-sans text-sm">
+                  <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${
+                    f.severity === "fail" ? "bg-red-500/20 text-red-400" : "bg-amber-500/20 text-amber-400"
+                  }`}>{i + 1}</span>
+                  <div>
+                    <span className="font-semibold text-white">{f.label}: </span>
+                    <span className="text-muted">{meta?.fix ?? f.detail}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </div>
+      )}
 
       <div className="mt-6 space-y-8">
         {CATEGORIES.map((cat) => {
@@ -263,20 +336,7 @@ function Report({ result }: { result: AuditResult }) {
               </h3>
               <ul className="space-y-2">
                 {items.map((f, i) => (
-                  <li
-                    key={f.id}
-                    className={`finding ${SEV_STYLE[f.severity].accent} fade-up flex gap-3 rounded-lg glass-soft p-3`}
-                    style={{ animationDelay: `${i * 45}ms` }}
-                  >
-                    <span
-                      title={SEV_STYLE[f.severity].label}
-                      className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEV_STYLE[f.severity].dot}`}
-                    />
-                    <div>
-                      <p className="font-serif font-medium text-ink">{f.label}</p>
-                      <p className="font-sans text-sm text-muted">{f.detail}</p>
-                    </div>
-                  </li>
+                  <FindingCard key={f.id} finding={f} delay={i * 45} />
                 ))}
               </ul>
             </div>
@@ -573,6 +633,49 @@ function LeadCapture({ url }: { url: string }) {
         </form>
       </div>
     </div>
+  );
+}
+
+function FindingCard({ finding, delay }: { finding: Finding; delay: number }) {
+  const meta = FINDING_META[finding.id];
+  const showFix = meta?.fix && finding.severity !== "ok";
+  return (
+    <li
+      className={`finding ${SEV_STYLE[finding.severity].accent} fade-up overflow-hidden rounded-lg glass-soft`}
+      style={{ animationDelay: `${delay}ms` }}
+    >
+      <div className="flex gap-3 p-3">
+        <span
+          title={SEV_STYLE[finding.severity].label}
+          className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${SEV_STYLE[finding.severity].dot}`}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+            <p className="font-serif font-medium text-ink">{finding.label}</p>
+            {meta && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="rounded border border-line px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                  {meta.article}
+                </span>
+                {finding.severity !== "ok" && (
+                  <span className={`rounded px-1.5 py-0.5 font-sans text-[10px] font-bold uppercase tracking-wide ${RISK_STYLE[meta.risk]}`}>
+                    {RISK_LABEL[meta.risk]}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="mt-0.5 font-sans text-sm text-muted">{finding.detail}</p>
+        </div>
+      </div>
+      {showFix && (
+        <div className="border-t border-line/50 bg-white/[0.025] px-3 py-2 pl-[34px]">
+          <p className="font-sans text-xs text-gold/90">
+            <span className="font-bold">↳ Qué hacer:</span> {meta!.fix}
+          </p>
+        </div>
+      )}
+    </li>
   );
 }
 
