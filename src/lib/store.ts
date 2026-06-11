@@ -53,6 +53,7 @@ async function saveToNotion(r: LeadRecord): Promise<string> {
         Recibido: { date: { start: r.receivedAt } },
         "Análisis textos legales": rt(r.legalSummary || ""),
         Comercial: { checkbox: !!r.marketingConsent },
+        Tipo: { select: { name: "auditoria" } },
       },
     }),
     signal: AbortSignal.timeout(10000),
@@ -137,7 +138,7 @@ export interface FollowupCandidate {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // Dominios de las filas de prueba históricas: jamás deben recibir emails.
-const TEST_EMAIL_RE = /@(ejemplo\.com|test\.com)$/i;
+export const TEST_EMAIL_RE = /@(ejemplo\.com|test\.com)$/i;
 
 type NotionProp = {
   title?: { plain_text: string }[];
@@ -215,6 +216,76 @@ async function saveToFile(record: LeadRecord): Promise<void> {
     }
     throw e;
   }
+}
+
+// ---------- Mensajes de formularios de la web (contacto / auditoría gratuita / B2C) ----------
+
+export type ContactFormType = "contacto" | "auditoria-gratuita" | "ejercicio-derechos";
+
+export interface ContactRecord {
+  formType: ContactFormType;
+  receivedAt: string;
+  email: string;
+  name?: string;
+  phone?: string;
+  message?: string;
+  url?: string; // web a auditar (auditoria-gratuita)
+  caso?: string; // vertical B2C (ejercicio-derechos): marketing | morosidad | olvido
+  marketingConsent: boolean;
+}
+
+// Guarda el mensaje en la misma base de Notion que los leads (columna "Tipo" lo distingue).
+// Si Notion falla o no está configurado → respaldo a fichero. Devuelve el page ID o null.
+export async function saveContact(r: ContactRecord): Promise<string | null> {
+  const mensaje = [
+    r.message?.trim(),
+    r.url ? `Web: ${r.url}` : null,
+    r.caso ? `Caso: ${r.caso}` : null,
+  ]
+    .filter(Boolean)
+    .join("\n");
+
+  if (NOTION_TOKEN && NOTION_LEADS_DB) {
+    try {
+      const res = await fetch("https://api.notion.com/v1/pages", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${NOTION_TOKEN}`,
+          "Notion-Version": "2022-06-28",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          parent: { database_id: NOTION_LEADS_DB },
+          properties: {
+            Email: { title: [{ text: { content: r.email } }] },
+            Nombre: rt(r.name || ""),
+            "Teléfono": { phone_number: r.phone || null },
+            Mensaje: rt(mensaje),
+            Tipo: { select: { name: r.formType } },
+            URL: { url: r.url || null },
+            Recibido: { date: { start: r.receivedAt } },
+            Comercial: { checkbox: !!r.marketingConsent },
+          },
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) {
+        throw new Error(`Notion ${res.status}: ${(await res.text()).slice(0, 300)}`);
+      }
+      return ((await res.json()) as { id: string }).id;
+    } catch (e) {
+      console.error("Notion (contact) falló, guardo en fichero:", (e as Error).message);
+    }
+  }
+  try {
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    await fs.appendFile(path.join(DATA_DIR, "contacts.jsonl"), JSON.stringify(r) + "\n", "utf8");
+  } catch {
+    const dir = path.join(os.tmpdir(), "auditoria-rgpd-leads");
+    await fs.mkdir(dir, { recursive: true });
+    await fs.appendFile(path.join(dir, "contacts.jsonl"), JSON.stringify(r) + "\n", "utf8");
+  }
+  return null;
 }
 
 // Devuelve el Notion page ID (para el update posterior) o null si cayó a fichero.

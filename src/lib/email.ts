@@ -57,16 +57,24 @@ function ctaBlock(tier: LeadTier): string {
 }
 
 // Carcasa de marca compartida por todos los emails (cabecera navy + tarjeta blanca + pie legal).
-function shell(content: string): string {
+// tagline y footer son parametrizables: los emails de formularios no son "diagnóstico".
+function shell(
+  content: string,
+  opts: { tagline?: string; footer?: string } = {},
+): string {
+  const tagline = opts.tagline ?? "Diagnóstico de cumplimiento RGPD";
+  const footer =
+    opts.footer ??
+    "Diagnóstico orientativo automático. No sustituye la revisión de un abogado ni constituye asesoramiento jurídico.";
   return `<!doctype html><html lang="es"><body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1c2733">
   <div style="max-width:560px;margin:0 auto;padding:24px">
     <div style="background:${NAVY};border-radius:10px 10px 0 0;padding:22px 28px">
       <div style="color:#fff;font-size:18px;font-weight:bold;letter-spacing:.5px">SoyLegal<span style="color:${GOLD}">360</span></div>
-      <div style="color:#9fb0c4;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px">Diagnóstico de cumplimiento RGPD</div>
+      <div style="color:#9fb0c4;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px">${tagline}</div>
     </div>
     <div style="background:#fff;border-radius:0 0 10px 10px;padding:28px">
       ${content}
-      <p style="font-size:11px;color:#5b6b7b;line-height:1.5;margin:18px 0 0;border-top:1px solid #e4e8ee;padding-top:14px">Diagnóstico orientativo automático. No sustituye la revisión de un abogado ni constituye asesoramiento jurídico.<br/>SoyLegal360 · soylegal360.es</p>
+      <p style="font-size:11px;color:#5b6b7b;line-height:1.5;margin:18px 0 0;border-top:1px solid #e4e8ee;padding-top:14px">${footer}<br/>SoyLegal360 · soylegal360.es</p>
     </div>
   </div></body></html>`;
 }
@@ -130,6 +138,91 @@ export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
         content: i.pdf.toString("base64"),
       },
     ],
+  });
+}
+
+// ---------- Emails de los formularios de la web (contacto / auditoría gratuita / B2C) ----------
+
+export type ContactFormType = "contacto" | "auditoria-gratuita" | "ejercicio-derechos";
+
+// Bandeja interna que recibe los mensajes (configurable; por defecto el buzón general).
+const CONTACT_INBOX = process.env.CONTACT_INBOX || "hola@soylegal360.es";
+
+const FORM_META: Record<ContactFormType, { label: string; ackIntro: string }> = {
+  contacto: {
+    label: "Contacto",
+    ackIntro:
+      "Hemos recibido tu mensaje. Te responderemos en menos de 24 horas laborables.",
+  },
+  "auditoria-gratuita": {
+    label: "Auditoría web gratuita",
+    ackIntro:
+      "Hemos recibido tu solicitud de auditoría web gratuita. Nuestro equipo legal revisará tu web y recibirás el informe en un plazo de 48 horas laborables.",
+  },
+  "ejercicio-derechos": {
+    label: "Ejercicio de derechos",
+    ackIntro:
+      "Hemos recibido tu caso. Lo valoramos sin coste y te contactaremos en menos de 24 horas laborables para explicarte si procede y los siguientes pasos.",
+  },
+};
+
+export interface ContactEmailInput {
+  formType: ContactFormType;
+  email: string;
+  name?: string;
+  phone?: string;
+  message?: string;
+  url?: string;
+  caso?: string;
+  marketing: boolean;
+}
+
+const esc = (s: string) =>
+  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+// Notificación interna a la bandeja de SoyLegal360 con los datos del mensaje.
+export async function sendContactNotification(i: ContactEmailInput): Promise<boolean> {
+  if (!emailEnabled()) return false;
+  const meta = FORM_META[i.formType];
+  const row = (k: string, v?: string) =>
+    v
+      ? `<tr><td style="padding:4px 10px 4px 0;color:#5b6b7b;white-space:nowrap;vertical-align:top">${k}</td><td style="padding:4px 0">${esc(v)}</td></tr>`
+      : "";
+  return sendViaResend({
+    to: [CONTACT_INBOX],
+    // El BCC global iría también a la bandeja interna → lo anulamos en este envío.
+    bcc: undefined,
+    reply_to: [i.email],
+    subject: `[Web · ${meta.label}] ${i.name || i.email}`,
+    html: shell(
+      `<p style="font-size:15px;margin:0 0 14px">Nuevo mensaje desde el formulario <strong>${meta.label}</strong>:</p>
+      <table style="font-size:14px;line-height:1.5;border-collapse:collapse">
+        ${row("Nombre", i.name)}${row("Email", i.email)}${row("Teléfono", i.phone)}${row("Web", i.url)}${row("Caso", i.caso)}${row("Comercial", i.marketing ? "Sí, acepta comunicaciones" : "No")}
+      </table>
+      ${i.message ? `<p style="font-size:14px;line-height:1.6;margin:14px 0 0;background:#f6f1e7;border-left:3px solid ${GOLD};padding:12px;border-radius:4px">${esc(i.message)}</p>` : ""}`,
+      { tagline: meta.label, footer: "Mensaje recibido en soylegal360.es. Responde directamente a este correo para contestar." },
+    ),
+  });
+}
+
+// Acuse de recibo breve al visitante.
+export async function sendContactAck(i: ContactEmailInput): Promise<boolean> {
+  if (!emailEnabled()) return false;
+  const meta = FORM_META[i.formType];
+  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+  return sendViaResend({
+    to: [i.email],
+    subject: `Hemos recibido tu ${i.formType === "contacto" ? "mensaje" : "solicitud"} · SoyLegal360`,
+    html: shell(
+      `<p style="font-size:15px;margin:0 0 14px">${saludo},</p>
+      <p style="font-size:14px;line-height:1.6;margin:0 0 14px">${meta.ackIntro}</p>
+      <p style="font-size:14px;line-height:1.6;margin:0">Si quieres añadir algo, responde directamente a este correo.</p>`,
+      {
+        tagline: meta.label,
+        footer:
+          "Has recibido este correo porque enviaste un formulario en soylegal360.es. Tus datos se tratan según nuestra política de privacidad (soylegal360.es/politica-de-privacidad/).",
+      },
+    ),
   });
 }
 
