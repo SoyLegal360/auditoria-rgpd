@@ -77,6 +77,12 @@ export default function Home() {
   const [error, setError] = useState("");
   const [result, setResult] = useState<AuditResult | null>(null);
 
+  // CTAs profundos desde la web (p. ej. la calculadora de riesgo): ?url=tudominio.com
+  useEffect(() => {
+    const u = new URLSearchParams(window.location.search).get("url");
+    if (u) setUrl(u);
+  }, []);
+
   async function runAudit(e: React.FormEvent) {
     e.preventDefault();
     if (!url.trim()) return;
