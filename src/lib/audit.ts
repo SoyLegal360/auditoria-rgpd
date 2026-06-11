@@ -1,6 +1,9 @@
 import { promises as dns } from "dns";
 import tls from "tls";
 import { safeFetch } from "@/lib/safe-fetch";
+import { BONUS_IDS } from "@/lib/scope";
+
+export { BONUS_IDS };
 
 export type Severity = "ok" | "warn" | "fail" | "info";
 
@@ -116,6 +119,8 @@ async function hasDkim(domain: string): Promise<boolean> {
 }
 
 const WEIGHT: Record<Severity, number> = { ok: 0, info: 0, warn: 6, fail: 14 };
+// Peso reducido (~1/3) para los checks "bonus": restan, pero no hunden la nota RGPD.
+const WEIGHT_BONUS: Record<Severity, number> = { ok: 0, info: 0, warn: 2, fail: 5 };
 
 export async function auditSite(rawUrl: string): Promise<AuditResult> {
   const url = normalizeUrl(rawUrl);
@@ -299,7 +304,10 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
   }
 
   // ---------- PUNTUACIÓN ----------
-  const penalty = findings.reduce((acc, f) => acc + WEIGHT[f.severity], 0);
+  const penalty = findings.reduce(
+    (acc, f) => acc + (BONUS_IDS.has(f.id) ? WEIGHT_BONUS : WEIGHT)[f.severity],
+    0,
+  );
   const score = Math.max(0, Math.min(100, 100 - penalty));
   const grade: AuditResult["grade"] = score >= 90 ? "A" : score >= 75 ? "B" : score >= 55 ? "C" : score >= 35 ? "D" : "E";
 

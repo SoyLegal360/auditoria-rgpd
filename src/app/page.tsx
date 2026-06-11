@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { BONUS_IDS } from "@/lib/scope";
 import type { AuditResult, Finding, Severity } from "@/lib/audit";
 import type { LegalTeaser } from "@/lib/legal";
 
@@ -253,7 +254,7 @@ function Report({ result }: { result: AuditResult }) {
   const fails = result.findings.filter((f) => f.severity === "fail").length;
   const warns = result.findings.filter((f) => f.severity === "warn").length;
   const priorities = result.findings
-    .filter((f) => f.severity === "fail" || f.severity === "warn")
+    .filter((f) => (f.severity === "fail" || f.severity === "warn") && !BONUS_IDS.has(f.id))
     .sort((a, b) => {
       const ra = RISK_ORDER[FINDING_META[a.id]?.risk ?? "bajo"];
       const rb = RISK_ORDER[FINDING_META[b.id]?.risk ?? "bajo"];
@@ -327,7 +328,7 @@ function Report({ result }: { result: AuditResult }) {
 
       <div className="mt-6 space-y-8">
         {CATEGORIES.map((cat) => {
-          const items = result.findings.filter((f) => f.category === cat.key);
+          const items = result.findings.filter((f) => f.category === cat.key && !BONUS_IDS.has(f.id));
           if (!items.length) return null;
           return (
             <div key={cat.key}>
@@ -343,6 +344,8 @@ function Report({ result }: { result: AuditResult }) {
           );
         })}
       </div>
+
+      <ExtraSecuritySection findings={result.findings.filter((f) => BONUS_IDS.has(f.id))} />
 
       <LegalTeaserSection loading={legal.loading} teaser={legal.teaser} />
 
@@ -631,6 +634,47 @@ function LeadCapture({ url }: { url: string }) {
             <div className="scanbar" />
           )}
         </form>
+      </div>
+    </div>
+  );
+}
+
+const EXTRA_GROUPS: { key: Finding["category"]; label: string; icon: string }[] = [
+  { key: "seguridad", label: "Cifrado y cabeceras de seguridad", icon: "🛡️" },
+  { key: "correo", label: "Protección del correo (SPF · DKIM · DMARC)", icon: "✉️" },
+];
+
+function ExtraSecuritySection({ findings }: { findings: Finding[] }) {
+  if (!findings.length) return null;
+  return (
+    <div className="mt-10 rounded-2xl border border-dashed border-line p-5 sm:p-6">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="font-serif text-lg font-semibold text-white">Seguridad adicional</h3>
+        <span className="font-sans text-[11px] uppercase tracking-wide text-muted">
+          Cortesía · fuera del alcance RGPD
+        </span>
+      </div>
+      <p className="mt-1 font-sans text-xs text-muted">
+        Comprobaciones técnicas que no forman parte del cumplimiento RGPD, pero que revisamos como
+        valor añadido. No afectan apenas a tu calificación.
+      </p>
+      <div className="mt-5 space-y-6">
+        {EXTRA_GROUPS.map((g) => {
+          const items = findings.filter((f) => f.category === g.key);
+          if (!items.length) return null;
+          return (
+            <div key={g.key}>
+              <h4 className="mb-3 font-sans text-xs font-bold uppercase tracking-[0.14em] text-muted">
+                {g.icon} {g.label}
+              </h4>
+              <ul className="space-y-2">
+                {items.map((f, i) => (
+                  <FindingCard key={f.id} finding={f} delay={i * 45} />
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

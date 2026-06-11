@@ -8,6 +8,7 @@ import {
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import { BONUS_IDS } from "@/lib/scope";
 import type { AuditResult } from "@/lib/audit";
 import type { LegalTeaser } from "@/lib/legal";
 import { LOGO_COLOR_DATA_URI } from "@/lib/logo-data";
@@ -82,11 +83,17 @@ const SEV_LABEL: Record<string, { t: string; c: string }> = {
 };
 
 const CAT_LABEL: Record<string, string> = {
-  seguridad: "Seguridad (HTTPS/SSL)",
+  seguridad: "Seguridad (HTTPS)",
   cookies: "Cookies y rastreadores",
   legal: "Textos legales",
   formularios: "Formularios",
   correo: "Correo electrónico",
+};
+
+// Etiquetas del bloque "Seguridad adicional" (checks fuera del núcleo RGPD).
+const EXTRA_LABEL: Record<string, string> = {
+  seguridad: "Cifrado y cabeceras de seguridad",
+  correo: "Protección del correo (SPF/DKIM/DMARC)",
 };
 
 export interface ReportData {
@@ -97,6 +104,7 @@ export interface ReportData {
   summary: string;
   recommendations: string[];
   categories: { key: string; worst: string }[];
+  extra: { key: string; worst: string }[];
   legal?: LegalTeaser | null;
   generatedAt: string;
 }
@@ -110,12 +118,29 @@ export function buildReportData(
 ): ReportData {
   // Para cada categoría, el peor hallazgo (fail > warn > ok/info).
   const order: Record<string, number> = { fail: 3, warn: 2, ok: 1, info: 0 };
+  const worstOf = (fs: AuditResult["findings"]) =>
+    fs.reduce((acc, f) => (order[f.severity] > order[acc] ? f.severity : acc), "info");
+
+  // Núcleo RGPD: solo los checks que SÍ forman parte del cumplimiento/servicio.
   const cats = ["seguridad", "cookies", "legal", "formularios", "correo"];
-  const categories = cats.map((key) => {
-    const findings = audit.findings.filter((f) => f.category === key);
-    const worst = findings.reduce((acc, f) => (order[f.severity] > order[acc] ? f.severity : acc), "info");
-    return { key, worst };
-  });
+  const categories = cats
+    .map((key) => {
+      const findings = audit.findings.filter((f) => f.category === key && !BONUS_IDS.has(f.id));
+      return { key, worst: worstOf(findings), n: findings.length };
+    })
+    .filter((c) => c.n > 0)
+    .map(({ key, worst }) => ({ key, worst }));
+
+  // Seguridad adicional: checks "bonus" agrupados (cabeceras/cifrado y correo).
+  const extraKeys = ["seguridad", "correo"];
+  const extra = extraKeys
+    .map((key) => {
+      const findings = audit.findings.filter((f) => f.category === key && BONUS_IDS.has(f.id));
+      return { key, worst: worstOf(findings), n: findings.length };
+    })
+    .filter((c) => c.n > 0)
+    .map(({ key, worst }) => ({ key, worst }));
+
   return {
     domain: audit.domain,
     finalUrl: audit.finalUrl,
@@ -124,6 +149,7 @@ export function buildReportData(
     summary,
     recommendations,
     categories,
+    extra,
     legal,
     generatedAt: new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" }),
   };
@@ -173,6 +199,24 @@ function ReportDoc({ data }: { data: ReportData }) {
               );
             })}
           </View>
+
+          {data.extra.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Seguridad adicional (cortesía)</Text>
+              <Text style={[styles.docStatus, { marginBottom: 6 }]}>
+                Comprobaciones técnicas fuera del alcance RGPD que revisamos como valor añadido.
+              </Text>
+              {data.extra.map((c) => {
+                const sev = SEV_LABEL[c.worst] || SEV_LABEL.info;
+                return (
+                  <View style={styles.catRow} key={c.key}>
+                    <Text style={styles.catName}>{EXTRA_LABEL[c.key] || c.key}</Text>
+                    <Text style={[styles.catBadge, { color: sev.c }]}>{sev.t}</Text>
+                  </View>
+                );
+              })}
+            </View>
+          )}
 
           {data.legal && data.legal.docs.length > 0 && (
             <View style={styles.section}>
