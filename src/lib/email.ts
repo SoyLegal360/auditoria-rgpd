@@ -12,6 +12,8 @@ export function emailEnabled(): boolean {
   return !!(RESEND_API_KEY && RESEND_FROM);
 }
 
+export type LeadTier = "hot" | "warm" | "cold";
+
 interface ReportEmailInput {
   to: string;
   name?: string;
@@ -19,13 +21,43 @@ interface ReportEmailInput {
   score: number;
   grade: string;
   pdf: Buffer;
+  tier?: LeadTier;
 }
 
 const NAVY = "#06152c";
 const GOLD = "#c9a96e";
+const SERVICES_URL = "https://www.soylegal360.es/servicios-proteccion-de-datos/";
 
-function htmlBody(i: ReportEmailInput): string {
-  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+// Párrafo comercial según la prioridad del lead (la calcula Claude en la cualificación).
+// El tono varía; los anclajes (pack 390€, PLC 49€/mes, sanciones desde 600€) son los del catálogo.
+function ctaParagraph(tier: LeadTier): string {
+  switch (tier) {
+    case "hot":
+      return `Tu web presenta <strong>fallos relevantes</strong> de cumplimiento. La AEPD sanciona este tipo de incumplimientos —las multas a pymes parten de 600€ y con frecuencia superan los 5.000€—. La buena noticia: se corrige rápido. Con la <strong>Adaptación Web RGPD (desde 390€)</strong> nuestro equipo legal redacta y certifica tus textos legales a medida.`;
+    case "cold":
+      return `Enhorabuena: tu web está entre las pocas que llegan casi conformes. Para que siga así cuando cambie la normativa (y cambia a menudo), tienes la <strong>Protección Legal Continua desde 49€/mes</strong>: vigilancia y actualización permanente de tus textos legales y cookies.`;
+    default:
+      return `¿Quieres dejar tu web 100% conforme? Con la <strong>Adaptación Web RGPD (desde 390€)</strong> nuestro equipo legal redacta y certifica tus textos legales a medida: Aviso Legal, Política de Privacidad, Política de Cookies y consentimiento de formularios.`;
+  }
+}
+
+const BUTTON_LABEL: Record<LeadTier, string> = {
+  hot: "Corregir mi web ahora →",
+  warm: "Quiero mi web 100% conforme →",
+  cold: "Mantener mi web conforme →",
+};
+
+// Botón dorado + alternativa de respuesta directa (CTA doble).
+// Fondo sólido (sin gradiente): los gradientes no se renderizan en Outlook y otros clientes.
+function ctaBlock(tier: LeadTier): string {
+  return `<div style="text-align:center;margin:22px 0">
+        <a href="${SERVICES_URL}" style="display:inline-block;background:${GOLD};color:${NAVY};font-weight:bold;font-size:14px;text-decoration:none;padding:13px 26px;border-radius:8px">${BUTTON_LABEL[tier]}</a>
+        <div style="font-size:12px;color:#5b6b7b;margin-top:10px">o simplemente responde a este correo y te ayudamos</div>
+      </div>`;
+}
+
+// Carcasa de marca compartida por todos los emails (cabecera navy + tarjeta blanca + pie legal).
+function shell(content: string): string {
   return `<!doctype html><html lang="es"><body style="margin:0;background:#f4f6f9;font-family:Arial,Helvetica,sans-serif;color:#1c2733">
   <div style="max-width:560px;margin:0 auto;padding:24px">
     <div style="background:${NAVY};border-radius:10px 10px 0 0;padding:22px 28px">
@@ -33,23 +65,32 @@ function htmlBody(i: ReportEmailInput): string {
       <div style="color:#9fb0c4;font-size:11px;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px">Diagnóstico de cumplimiento RGPD</div>
     </div>
     <div style="background:#fff;border-radius:0 0 10px 10px;padding:28px">
-      <p style="font-size:15px;margin:0 0 14px">${saludo},</p>
-      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">Ya tienes tu <strong>diagnóstico RGPD de ${i.domain}</strong>. Lo encontrarás en el PDF adjunto, con el detalle por áreas y el análisis de tus textos legales.</p>
-      <div style="text-align:center;margin:20px 0">
-        <div style="display:inline-block;border:2px solid ${GOLD};border-radius:10px;padding:14px 26px">
-          <div style="font-size:34px;font-weight:bold;color:${NAVY};line-height:1">${i.score}<span style="font-size:14px;color:#5b6b7b">/100</span></div>
-          <div style="font-size:13px;color:#5b6b7b;margin-top:2px">Calificación <strong style="color:${NAVY}">${i.grade}</strong></div>
-        </div>
-      </div>
-      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">¿Quieres dejar tu web 100% conforme? Con la <strong>Adaptación Web RGPD (desde 390€)</strong> nuestro equipo legal redacta y certifica tus textos legales a medida. Responde a este correo y te ayudamos.</p>
+      ${content}
       <p style="font-size:11px;color:#5b6b7b;line-height:1.5;margin:18px 0 0;border-top:1px solid #e4e8ee;padding-top:14px">Diagnóstico orientativo automático. No sustituye la revisión de un abogado ni constituye asesoramiento jurídico.<br/>SoyLegal360 · soylegal360.es</p>
     </div>
   </div></body></html>`;
 }
 
-// Envía el informe. Devuelve true si se envió, false si está deshabilitado o falló (no lanza).
-export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
-  if (!emailEnabled()) return false;
+function scoreBox(score: number, grade: string): string {
+  return `<div style="text-align:center;margin:20px 0">
+        <div style="display:inline-block;border:2px solid ${GOLD};border-radius:10px;padding:14px 26px">
+          <div style="font-size:34px;font-weight:bold;color:${NAVY};line-height:1">${score}<span style="font-size:14px;color:#5b6b7b">/100</span></div>
+          <div style="font-size:13px;color:#5b6b7b;margin-top:2px">Calificación <strong style="color:${NAVY}">${grade}</strong></div>
+        </div>
+      </div>`;
+}
+
+function htmlBody(i: ReportEmailInput): string {
+  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+  const tier = i.tier || "warm";
+  return shell(`<p style="font-size:15px;margin:0 0 14px">${saludo},</p>
+      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">Ya tienes tu <strong>diagnóstico RGPD de ${i.domain}</strong>. Lo encontrarás en el PDF adjunto, con el detalle por áreas y el análisis de tus textos legales.</p>
+      ${scoreBox(i.score, i.grade)}
+      <p style="font-size:14px;line-height:1.5;margin:0 0 6px">${ctaParagraph(tier)}</p>
+      ${ctaBlock(tier)}`);
+}
+
+async function sendViaResend(payload: Record<string, unknown>): Promise<boolean> {
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
@@ -59,17 +100,9 @@ export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
       },
       body: JSON.stringify({
         from: RESEND_FROM,
-        to: [i.to],
         ...(RESEND_REPLY_TO ? { reply_to: [RESEND_REPLY_TO] } : {}),
         ...(RESEND_BCC ? { bcc: [RESEND_BCC] } : {}),
-        subject: `Tu diagnóstico RGPD de ${i.domain} · ${i.score}/100 (${i.grade})`,
-        html: htmlBody(i),
-        attachments: [
-          {
-            filename: `diagnostico-rgpd-${i.domain}.pdf`,
-            content: i.pdf.toString("base64"),
-          },
-        ],
+        ...payload,
       }),
       signal: AbortSignal.timeout(15000),
     });
@@ -82,4 +115,58 @@ export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
     console.error("Resend excepción:", (e as Error).message);
     return false;
   }
+}
+
+// Envía el informe. Devuelve true si se envió, false si está deshabilitado o falló (no lanza).
+export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
+  if (!emailEnabled()) return false;
+  return sendViaResend({
+    to: [i.to],
+    subject: `Tu diagnóstico RGPD de ${i.domain} · ${i.score}/100 (${i.grade})`,
+    html: htmlBody(i),
+    attachments: [
+      {
+        filename: `diagnostico-rgpd-${i.domain}.pdf`,
+        content: i.pdf.toString("base64"),
+      },
+    ],
+  });
+}
+
+// ---------- Email de seguimiento (cron, a los 3 días) ----------
+// Sin PDF: se construye solo con los datos que ya viven en Notion. El copy queda SIEMPRE
+// ligado al diagnóstico que el lead solicitó (no es comunicación comercial genérica).
+export interface FollowupInput {
+  to: string;
+  name?: string;
+  domain: string;
+  score: number;
+  grade: string;
+  tier: LeadTier;
+  recommendations: string[];
+  reportDelivered: boolean; // false = el primer email falló → este envío lo repara
+}
+
+export async function sendFollowupEmail(i: FollowupInput): Promise<boolean> {
+  if (!emailEnabled()) return false;
+  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+  const recos = i.recommendations
+    .slice(0, i.reportDelivered ? 3 : 5)
+    .map((r) => `<li style="margin:0 0 6px">${r}</li>`)
+    .join("");
+  const intro = i.reportDelivered
+    ? `Hace unos días te enviamos el <strong>diagnóstico RGPD de ${i.domain}</strong>. Por si no tuviste ocasión de revisarlo, este es el resumen:`
+    : `Hace unos días solicitaste el <strong>diagnóstico RGPD de ${i.domain}</strong> y no nos consta que el informe llegara bien, así que te lo resumimos aquí:`;
+  return sendViaResend({
+    to: [i.to],
+    subject: i.reportDelivered
+      ? `¿Revisaste el diagnóstico RGPD de ${i.domain}?`
+      : `Tu diagnóstico RGPD de ${i.domain} (reenvío)`,
+    html: shell(`<p style="font-size:15px;margin:0 0 14px">${saludo},</p>
+      <p style="font-size:14px;line-height:1.5;margin:0 0 14px">${intro}</p>
+      ${scoreBox(i.score, i.grade)}
+      ${recos ? `<ul style="font-size:14px;line-height:1.5;margin:0 0 16px;padding-left:20px">${recos}</ul>` : ""}
+      <p style="font-size:14px;line-height:1.5;margin:0 0 6px">${ctaParagraph(i.tier)}</p>
+      ${ctaBlock(i.tier)}`),
+  });
 }

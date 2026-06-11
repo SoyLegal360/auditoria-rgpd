@@ -3,7 +3,7 @@ import { randomUUID } from "crypto";
 import { auditSite } from "@/lib/audit";
 import { qualifyLead, fallbackQualify, type LeadContact } from "@/lib/lead";
 import { analyzeLegal, toInternalSummary, toPublicTeaser } from "@/lib/legal";
-import { saveLead, updateLeadAnalysis, type LeadRecord } from "@/lib/store";
+import { saveLead, updateLeadAnalysis, markLeadFlag, type LeadRecord } from "@/lib/store";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { buildReportData, renderReportPdf } from "@/lib/report-pdf";
 import { sendReportEmail, emailEnabled } from "@/lib/email";
@@ -115,14 +115,22 @@ export async function POST(req: Request) {
             legal ? toPublicTeaser(legal) : null,
           );
           const pdf = await renderReportPdf(reportData);
-          await sendReportEmail({
+          const sent = await sendReportEmail({
             to: contact.email,
             name: contact.name,
             domain: audit.domain,
             score: audit.score,
             grade: audit.grade,
             pdf,
+            tier: fullQualification.tier,
           });
+          // Tracking: el checkbox apagado en Notion = informe no entregado
+          // (visible para ventas, y el cron de seguimiento lo repara al 3er día).
+          if (sent && pageId) {
+            await markLeadFlag(pageId, "Email enviado").catch((e: Error) =>
+              console.error("Notion flag 'Email enviado' falló:", e.message),
+            );
+          }
         }
       } catch (e) {
         console.error("Background lead work failed:", (e as Error).message);

@@ -101,6 +101,100 @@ export async function updateLeadAnalysis(
   }
 }
 
+// Enciende un checkbox de tracking de envío ("Email enviado" / "Seguimiento enviado").
+// Best-effort en background: lanza si Notion responde error (el caller decide si loguear).
+export async function markLeadFlag(
+  pageId: string,
+  prop: "Email enviado" | "Seguimiento enviado",
+): Promise<void> {
+  if (!NOTION_TOKEN) return;
+  const res = await fetch(`https://api.notion.com/v1/pages/${pageId}`, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${NOTION_TOKEN}`,
+      "Notion-Version": "2022-06-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ properties: { [prop]: { checkbox: true } } }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion flag ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+}
+
+export interface FollowupCandidate {
+  pageId: string;
+  email: string;
+  name?: string;
+  domain: string;
+  score: number;
+  grade: string;
+  tier: string;
+  recommendations: string[];
+  emailSent: boolean; // ¿llegó a enviarse el informe inicial?
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Dominios de las filas de prueba históricas: jamás deben recibir emails.
+const TEST_EMAIL_RE = /@(ejemplo\.com|test\.com)$/i;
+
+type NotionProp = {
+  title?: { plain_text: string }[];
+  rich_text?: { plain_text: string }[];
+  number?: number | null;
+  select?: { name: string } | null;
+  checkbox?: boolean;
+};
+const plain = (p?: NotionProp) =>
+  (p?.title || p?.rich_text || []).map((t) => t.plain_text).join("");
+
+// Leads con ≥`days` días de antigüedad y sin seguimiento enviado (para el cron diario).
+export async function queryFollowupCandidates(days = 3, cap = 20): Promise<FollowupCandidate[]> {
+  if (!NOTION_TOKEN || !NOTION_LEADS_DB) return [];
+  const before = new Date(Date.now() - days * 86_400_000).toISOString();
+  const res = await fetch(`https://api.notion.com/v1/databases/${NOTION_LEADS_DB}/query`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${NOTION_TOKEN}`,
+      "Notion-Version": "2022-06-28",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      page_size: cap,
+      filter: {
+        and: [
+          { property: "Recibido", date: { on_or_before: before } },
+          { property: "Seguimiento enviado", checkbox: { equals: false } },
+        ],
+      },
+    }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!res.ok) {
+    throw new Error(`Notion query ${res.status}: ${(await res.text()).slice(0, 300)}`);
+  }
+  const data = (await res.json()) as {
+    results: { id: string; properties: Record<string, NotionProp> }[];
+  };
+  return data.results
+    .map((row) => {
+      const p = row.properties;
+      return {
+        pageId: row.id,
+        email: plain(p["Email"]),
+        name: plain(p["Nombre"]) || undefined,
+        domain: plain(p["Dominio"]),
+        score: p["Puntuación"]?.number ?? 0,
+        grade: p["Nota"]?.select?.name || "C",
+        tier: p["Prioridad"]?.select?.name || "warm",
+        recommendations: plain(p["Recomendaciones"]).split("\n").filter(Boolean),
+        emailSent: !!p["Email enviado"]?.checkbox,
+      };
+    })
+    .filter((c) => EMAIL_RE.test(c.email) && !TEST_EMAIL_RE.test(c.email) && c.domain);
+}
+
 // Respaldo a fichero (uso local). En Vercel el FS del proyecto es de solo lectura
 // (EROFS) → cae a /tmp (escribible pero EFÍMERO).
 const DATA_DIR = process.env.LEADS_DIR || path.join(process.cwd(), "data");
