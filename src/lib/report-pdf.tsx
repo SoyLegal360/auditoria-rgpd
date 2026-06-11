@@ -4,6 +4,7 @@ import {
   Text,
   View,
   Image,
+  Link,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
@@ -64,6 +65,7 @@ const styles = StyleSheet.create({
   ctaBox: { backgroundColor: "#f6f1e7", borderLeftWidth: 3, borderLeftColor: GOLD, padding: 12, marginTop: 6, borderRadius: 4 },
   ctaTitle: { fontSize: 10.5, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 3 },
   ctaText: { fontSize: 9.5, color: INK, lineHeight: 1.4 },
+  ctaLink: { fontSize: 9.5, color: GOLD, marginTop: 8, textDecoration: "underline" },
   disclaimer: { fontSize: 8, color: MUTED, marginTop: 14, lineHeight: 1.4, fontStyle: "italic" },
   footer: {
     position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: NAVY,
@@ -216,6 +218,9 @@ function ReportDoc({ data }: { data: ReportData }) {
               tus textos legales a medida: Aviso Legal, Política de Privacidad, Política de Cookies y
               consentimiento de formularios. Escríbenos a hola@soylegal360.es o responde a este correo.
             </Text>
+            <Link style={styles.ctaLink} src="https://www.soylegal360.es/servicios-proteccion-de-datos/">
+              → Ver nuestros servicios de protección de datos en soylegal360.es
+            </Link>
           </View>
 
           <Text style={styles.disclaimer}>
