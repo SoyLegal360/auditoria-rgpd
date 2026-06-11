@@ -152,17 +152,17 @@ const FORM_META: Record<ContactFormType, { label: string; ackIntro: string }> = 
   contacto: {
     label: "Contacto",
     ackIntro:
-      "Hemos recibido tu mensaje. Te responderemos en menos de 24 horas laborables.",
+      "Hemos recibido tu mensaje. Te responderemos en menos de 48 horas hábiles.",
   },
   "auditoria-gratuita": {
     label: "Auditoría web gratuita",
     ackIntro:
-      "Hemos recibido tu solicitud de auditoría web gratuita. Nuestro equipo legal revisará tu web y recibirás el informe en un plazo de 48 horas laborables.",
+      "Hemos recibido tu solicitud de auditoría web gratuita. Nuestro equipo legal revisará tu web y recibirás el informe en un plazo de 48 horas hábiles.",
   },
   "ejercicio-derechos": {
     label: "Ejercicio de derechos",
     ackIntro:
-      "Hemos recibido tu caso. Lo valoramos sin coste y te contactaremos en menos de 24 horas laborables para explicarte si procede y los siguientes pasos.",
+      "Hemos recibido tu caso. Lo valoramos sin coste y te contactaremos en menos de 48 horas hábiles para explicarte si procede y los siguientes pasos.",
   },
 };
 
