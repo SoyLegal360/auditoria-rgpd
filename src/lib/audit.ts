@@ -55,8 +55,11 @@ async function getCertExpiry(hostname: string): Promise<Date | null> {
 }
 
 export const TRACKERS: { name: string; re: RegExp }[] = [
-  { name: "Google Analytics", re: /gtag\(|google-analytics\.com|G-[A-Z0-9]{6,}|UA-\d{4,}-\d+/i },
-  { name: "Google Tag Manager", re: /googletagmanager\.com|GTM-[A-Z0-9]+/i },
+  // OJO: los IDs (G-…, UA-…, GTM-…) van SIN flag /i y con \b: con case-insensitive,
+  // "G-[A-Z0-9]{6,}" matchea CSS corriente ("padding-bottom" → "g-bottom") y produce
+  // falsos positivos de GA en webs que no lo usan (detectado con soylegal360.es).
+  { name: "Google Analytics", re: /gtag\(|google-analytics\.com|\bG-[A-Z0-9]{8,14}\b|\bUA-\d{4,10}-\d{1,4}\b/ },
+  { name: "Google Tag Manager", re: /googletagmanager\.com|\bGTM-[A-Z0-9]{4,}\b/ },
   { name: "Meta / Facebook Pixel", re: /connect\.facebook\.net|fbq\(/i },
   { name: "Google Ads / DoubleClick", re: /googleadservices|doubleclick\.net/i },
   { name: "Hotjar", re: /static\.hotjar\.com|\bhj\(/i },
