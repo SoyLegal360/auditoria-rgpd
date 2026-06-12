@@ -231,6 +231,7 @@ export interface ContactRecord {
   message?: string;
   url?: string; // web a auditar (auditoria-gratuita)
   caso?: string; // vertical B2C (ejercicio-derechos): marketing | morosidad | olvido
+  servicio?: string; // servicio de interés (contacto): catálogo
   marketingConsent: boolean;
 }
 
@@ -262,6 +263,7 @@ export async function saveContact(r: ContactRecord): Promise<string | null> {
             "Teléfono": { phone_number: r.phone || null },
             Mensaje: rt(mensaje),
             Tipo: { select: { name: r.formType } },
+            ...(r.servicio ? { Servicio: { select: { name: r.servicio } } } : {}),
             URL: { url: r.url || null },
             Recibido: { date: { start: r.receivedAt } },
             Comercial: { checkbox: !!r.marketingConsent },

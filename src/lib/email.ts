@@ -174,6 +174,7 @@ export interface ContactEmailInput {
   message?: string;
   url?: string;
   caso?: string;
+  servicio?: string;
   marketing: boolean;
 }
 
@@ -197,7 +198,7 @@ export async function sendContactNotification(i: ContactEmailInput): Promise<boo
     html: shell(
       `<p style="font-size:15px;margin:0 0 14px">Nuevo mensaje desde el formulario <strong>${meta.label}</strong>:</p>
       <table style="font-size:14px;line-height:1.5;border-collapse:collapse">
-        ${row("Nombre", i.name)}${row("Email", i.email)}${row("Teléfono", i.phone)}${row("Web", i.url)}${row("Caso", i.caso)}${row("Comercial", i.marketing ? "Sí, acepta comunicaciones" : "No")}
+        ${row("Nombre", i.name)}${row("Email", i.email)}${row("Teléfono", i.phone)}${row("Servicio", i.servicio)}${row("Web", i.url)}${row("Caso", i.caso)}${row("Comercial", i.marketing ? "Sí, acepta comunicaciones" : "No")}
       </table>
       ${i.message ? `<p style="font-size:14px;line-height:1.6;margin:14px 0 0;background:#f6f1e7;border-left:3px solid ${GOLD};padding:12px;border-radius:4px">${esc(i.message)}</p>` : ""}`,
       { tagline: meta.label, footer: "Mensaje recibido en soylegal360.es. Responde directamente a este correo para contestar." },

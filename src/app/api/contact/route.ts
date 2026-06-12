@@ -51,6 +51,7 @@ export async function POST(req: Request) {
     message?: string;
     url?: string;
     caso?: string;
+    servicio?: string;
     consent?: boolean;
     marketing?: boolean;
     website?: string; // honeypot: campo oculto que un humano nunca rellena
@@ -94,6 +95,7 @@ export async function POST(req: Request) {
     message: body.message?.trim().slice(0, 4000) || undefined,
     url: body.url?.trim().slice(0, 300) || undefined,
     caso: body.caso?.trim().slice(0, 60) || undefined,
+    servicio: body.servicio?.trim().slice(0, 80) || undefined,
     marketingConsent: !!body.marketing,
   };
 
