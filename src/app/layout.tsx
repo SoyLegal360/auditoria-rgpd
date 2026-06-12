@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Roboto, JetBrains_Mono } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 // Roboto solo para el wordmark "SoyLegal360" (resto: Georgia/Arial del sistema).
@@ -53,7 +54,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className={`${roboto.variable} ${mono.variable} h-full antialiased`}>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }
