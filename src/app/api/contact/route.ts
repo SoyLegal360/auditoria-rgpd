@@ -30,7 +30,7 @@ export async function OPTIONS(req: Request) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const FORM_TYPES = new Set<ContactFormType>(["contacto", "auditoria-gratuita", "ejercicio-derechos"]);
+const FORM_TYPES = new Set<ContactFormType>(["contacto", "auditoria-gratuita", "ejercicio-derechos", "chat"]);
 
 export async function POST(req: Request) {
   const cors = corsHeaders(req);

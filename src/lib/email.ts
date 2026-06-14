@@ -143,7 +143,7 @@ export async function sendReportEmail(i: ReportEmailInput): Promise<boolean> {
 
 // ---------- Emails de los formularios de la web (contacto / auditoría gratuita / B2C) ----------
 
-export type ContactFormType = "contacto" | "auditoria-gratuita" | "ejercicio-derechos";
+export type ContactFormType = "contacto" | "auditoria-gratuita" | "ejercicio-derechos" | "chat";
 
 // Bandeja interna que recibe los mensajes (configurable; por defecto el buzón general).
 const CONTACT_INBOX = process.env.CONTACT_INBOX || "hola@soylegal360.es";
@@ -163,6 +163,11 @@ const FORM_META: Record<ContactFormType, { label: string; ackIntro: string }> = 
     label: "Ejercicio de derechos",
     ackIntro:
       "Hemos recibido tu caso. Lo valoramos sin coste y te contactaremos en menos de 48 horas hábiles para explicarte si procede y los siguientes pasos.",
+  },
+  chat: {
+    label: "Asistente virtual",
+    ackIntro:
+      "Hemos recibido tu solicitud desde el asistente de la web. Te contactaremos en menos de 48 horas hábiles.",
   },
 };
 

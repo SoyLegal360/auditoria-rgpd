@@ -220,7 +220,7 @@ async function saveToFile(record: LeadRecord): Promise<void> {
 
 // ---------- Mensajes de formularios de la web (contacto / auditoría gratuita / B2C) ----------
 
-export type ContactFormType = "contacto" | "auditoria-gratuita" | "ejercicio-derechos";
+export type ContactFormType = "contacto" | "auditoria-gratuita" | "ejercicio-derechos" | "chat";
 
 export interface ContactRecord {
   formType: ContactFormType;
@@ -238,10 +238,19 @@ export interface ContactRecord {
 // Guarda el mensaje en la misma base de Notion que los leads (columna "Tipo" lo distingue).
 // Si Notion falla o no está configurado → respaldo a fichero. Devuelve el page ID o null.
 export async function saveContact(r: ContactRecord): Promise<string | null> {
+  // Evidencia de consentimiento (trazabilidad RGPD art. 7.1): para el asistente web,
+  // el lead solo llega aquí tras marcar la casilla de consentimiento en el formulario del
+  // chat (acto afirmativo). Dejamos constancia explícita junto a la fecha (Recibido).
+  const consentEvidence =
+    r.formType === "chat"
+      ? `[Consentimiento de contacto y política de privacidad aceptados (casilla marcada) vía asistente web el ${r.receivedAt}]`
+      : null;
+
   const mensaje = [
     r.message?.trim(),
     r.url ? `Web: ${r.url}` : null,
     r.caso ? `Caso: ${r.caso}` : null,
+    consentEvidence,
   ]
     .filter(Boolean)
     .join("\n");
