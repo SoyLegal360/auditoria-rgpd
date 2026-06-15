@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { saveContact, TEST_EMAIL_RE, type ContactFormType } from "@/lib/store";
 import { sendContactNotification, sendContactAck } from "@/lib/email";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
+import { SERVICIOS } from "@/lib/chat-kb";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
     message: body.message?.trim().slice(0, 4000) || undefined,
     url: body.url?.trim().slice(0, 300) || undefined,
     caso: body.caso?.trim().slice(0, 60) || undefined,
-    servicio: body.servicio?.trim().slice(0, 80) || undefined,
+    servicio: SERVICIOS.indexOf((body.servicio || "").trim()) >= 0 ? body.servicio!.trim() : undefined,
     marketingConsent: !!body.marketing,
   };
 

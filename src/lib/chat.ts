@@ -1,5 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { buildSystemPrompt } from "@/lib/chat-kb";
+import { buildSystemPrompt, SERVICIOS } from "@/lib/chat-kb";
 
 // Haiku: barato y de sobra para un concierge/FAQ. Override por env si hace falta.
 const MODEL = process.env.ANTHROPIC_MODEL_CHAT || "claude-haiku-4-5";
@@ -18,6 +18,7 @@ export interface LeadPrefill {
   nombre?: string;
   email?: string;
   motivo?: string;
+  servicio?: string; // servicio de interés (una de las opciones del catálogo Notion)
 }
 
 export interface ChatResult {
@@ -43,6 +44,11 @@ const LEAD_TOOL: Anthropic.Tool = {
       nombre: { type: "string", description: "Nombre del visitante, si lo ha dicho" },
       email: { type: "string", description: "Email, si lo ha dicho" },
       motivo: { type: "string", description: "Resumen en una frase de lo que necesita" },
+      servicio: {
+        type: "string",
+        enum: SERVICIOS,
+        description: "Servicio de interés, SOLO si está claro por la conversación. Omitir si no lo está.",
+      },
     },
     required: [],
   },
@@ -108,6 +114,7 @@ export async function runChat(
         nombre: (args.nombre || "").toString().slice(0, 200) || undefined,
         email: (args.email || "").toString().slice(0, 200) || undefined,
         motivo: (args.motivo || "").toString().slice(0, 400) || undefined,
+        servicio: SERVICIOS.indexOf((args.servicio || "").toString()) >= 0 ? args.servicio : undefined,
       };
       if (!reply) {
         reply =
