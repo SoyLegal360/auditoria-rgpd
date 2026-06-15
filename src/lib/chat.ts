@@ -133,3 +133,76 @@ export async function runChat(
     return { reply: HANDOFF_REPLY, cta: "handoff", source: "fallback" };
   }
 }
+
+// ---- Versión en STREAMING (NDJSON) para /api/chat ----
+export interface ChatStreamEvent {
+  type: "delta" | "done";
+  text?: string; // delta de texto
+  reply?: string; // done: texto completo a usar si no hubo deltas (handoff/fallback)
+  cta?: "handoff" | "lead_form";
+  prefill?: LeadPrefill;
+}
+
+const DEFAULT_LEAD_REPLY =
+  "Genial. Déjame tus datos aquí abajo y el equipo te escribirá en menos de 48 horas hábiles.";
+const DEFAULT_EMPTY_REPLY =
+  "Cuéntame en qué te puedo ayudar sobre protección de datos o cumplimiento de IA, o escríbenos por WhatsApp (wa.me/34645668235).";
+
+export async function* runChatStream(
+  messages: ChatMessage[],
+  pageContext?: PageContext,
+): AsyncGenerator<ChatStreamEvent> {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    yield { type: "done", reply: HANDOFF_REPLY, cta: "handoff" };
+    return;
+  }
+
+  const client = new Anthropic({ apiKey });
+  const system: Anthropic.TextBlockParam[] = [
+    { type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } },
+  ];
+  const ctxBlock = pageContextBlock(pageContext);
+  if (ctxBlock) system.push({ type: "text", text: ctxBlock });
+
+  try {
+    const stream = client.messages.stream({
+      model: MODEL,
+      max_tokens: 600,
+      temperature: 0.3,
+      system,
+      tools: [LEAD_TOOL],
+      messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    });
+
+    let acc = "";
+    for await (const event of stream) {
+      if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
+        acc += event.delta.text;
+        yield { type: "delta", text: event.delta.text };
+      }
+    }
+
+    const final = await stream.finalMessage();
+    const toolUse = final.content.find(
+      (b): b is Anthropic.ToolUseBlock =>
+        b.type === "tool_use" && b.name === "solicitar_datos_contacto",
+    );
+
+    if (toolUse) {
+      const args = toolUse.input as LeadPrefill;
+      const prefill: LeadPrefill = {
+        nombre: (args.nombre || "").toString().slice(0, 200) || undefined,
+        email: (args.email || "").toString().slice(0, 200) || undefined,
+        motivo: (args.motivo || "").toString().slice(0, 400) || undefined,
+        servicio: SERVICIOS.indexOf((args.servicio || "").toString()) >= 0 ? args.servicio : undefined,
+      };
+      yield { type: "done", cta: "lead_form", prefill, reply: acc.trim() ? undefined : DEFAULT_LEAD_REPLY };
+    } else {
+      yield { type: "done", reply: acc.trim() ? undefined : DEFAULT_EMPTY_REPLY };
+    }
+  } catch (e) {
+    console.error("Chat stream: Claude falló:", (e as Error).message);
+    yield { type: "done", reply: HANDOFF_REPLY, cta: "handoff" };
+  }
+}

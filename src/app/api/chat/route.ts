@@ -1,5 +1,4 @@
-import { NextResponse } from "next/server";
-import { runChat, type ChatMessage, type PageContext } from "@/lib/chat";
+import { runChatStream, type ChatMessage, type PageContext } from "@/lib/chat";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { dailyBudget } from "@/lib/budget";
 
@@ -37,17 +36,19 @@ const GLOBAL_DAILY_LIMIT = Number(process.env.CHAT_DAILY_LIMIT || 800); // presu
 const HANDOFF_REPLY =
   "Ahora mismo no puedo seguir la conversación. Escríbenos por WhatsApp (wa.me/34645668235) o desde el formulario de /contacto/ y el equipo te responde en menos de 48 horas hábiles.";
 
-export async function POST(req: Request) {
-  const cors = corsHeaders(req);
+// Respuesta NDJSON de una sola línea (mismo formato que el stream) para los cortes tempranos.
+function ndLine(req: Request, obj: unknown, status = 200, extra: Record<string, string> = {}) {
+  return new Response(JSON.stringify(obj) + "\n", {
+    status,
+    headers: { ...corsHeaders(req), "Content-Type": "application/x-ndjson; charset=utf-8", ...extra },
+  });
+}
+const handoff = { type: "done" as const, reply: HANDOFF_REPLY, cta: "handoff" as const };
 
+export async function POST(req: Request) {
   // 1) Rate-limit por IP (multi-turno → algo más alto que el formulario).
   const rl = rateLimit(`chat:${clientIp(req)}`, 30, 60_000);
-  if (!rl.ok) {
-    return NextResponse.json(
-      { reply: HANDOFF_REPLY, cta: "handoff" },
-      { status: 429, headers: { ...cors, "Retry-After": String(rl.retryAfter) } },
-    );
-  }
+  if (!rl.ok) return ndLine(req, handoff, 429, { "Retry-After": String(rl.retryAfter) });
 
   let body: {
     messages?: { role?: string; content?: string }[];
@@ -57,13 +58,11 @@ export async function POST(req: Request) {
   try {
     body = await req.json();
   } catch {
-    return NextResponse.json({ error: "Cuerpo inválido." }, { status: 400, headers: cors });
+    return ndLine(req, handoff, 400);
   }
 
   // 2) Honeypot relleno = bot → respuesta neutra, sin llamar al modelo.
-  if (body.website && body.website.trim()) {
-    return NextResponse.json({ reply: HANDOFF_REPLY, cta: "handoff" }, { headers: cors });
-  }
+  if (body.website && body.website.trim()) return ndLine(req, handoff);
 
   // 3) Validación del historial.
   const raw = Array.isArray(body.messages) ? body.messages : [];
@@ -81,17 +80,12 @@ export async function POST(req: Request) {
     }));
 
   if (messages.length === 0 || messages[messages.length - 1].role !== "user") {
-    return NextResponse.json(
-      { error: "Falta el mensaje del usuario." },
-      { status: 400, headers: cors },
-    );
+    return ndLine(req, handoff, 400);
   }
 
   // 4) Presupuesto global diario (best-effort por instancia). Si se supera → handoff limpio.
   const budget = dailyBudget("chat:global", GLOBAL_DAILY_LIMIT);
-  if (!budget.ok) {
-    return NextResponse.json({ reply: HANDOFF_REPLY, cta: "handoff" }, { headers: cors });
-  }
+  if (!budget.ok) return ndLine(req, handoff);
 
   const pageContext: PageContext | undefined = body.pageContext
     ? {
@@ -100,6 +94,28 @@ export async function POST(req: Request) {
       }
     : undefined;
 
-  const result = await runChat(messages, pageContext);
-  return NextResponse.json(result, { headers: cors });
+  // 5) Stream NDJSON: una línea JSON por evento ({type:"delta"|"done"}).
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      try {
+        for await (const ev of runChatStream(messages, pageContext)) {
+          controller.enqueue(encoder.encode(JSON.stringify(ev) + "\n"));
+        }
+      } catch (e) {
+        console.error("Chat route stream error:", (e as Error).message);
+        controller.enqueue(encoder.encode(JSON.stringify(handoff) + "\n"));
+      } finally {
+        controller.close();
+      }
+    },
+  });
+
+  return new Response(stream, {
+    headers: {
+      ...corsHeaders(req),
+      "Content-Type": "application/x-ndjson; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+    },
+  });
 }
