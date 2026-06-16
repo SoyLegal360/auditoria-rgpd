@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { saveContact, TEST_EMAIL_RE, type ContactFormType } from "@/lib/store";
 import { sendContactNotification, sendContactAck } from "@/lib/email";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
-import { SERVICIOS } from "@/lib/chat-kb";
+import { SERVICIOS, TIPOS_CONSULTA } from "@/lib/chat-kb";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -53,6 +53,7 @@ export async function POST(req: Request) {
     url?: string;
     caso?: string;
     servicio?: string;
+    tipoConsulta?: string;
     consent?: boolean;
     marketing?: boolean;
     website?: string; // honeypot: campo oculto que un humano nunca rellena
@@ -97,6 +98,7 @@ export async function POST(req: Request) {
     url: body.url?.trim().slice(0, 300) || undefined,
     caso: body.caso?.trim().slice(0, 60) || undefined,
     servicio: SERVICIOS.indexOf((body.servicio || "").trim()) >= 0 ? body.servicio!.trim() : undefined,
+    tipoConsulta: TIPOS_CONSULTA.indexOf((body.tipoConsulta || "").trim()) >= 0 ? body.tipoConsulta!.trim() : undefined,
     marketingConsent: !!body.marketing,
   };
 

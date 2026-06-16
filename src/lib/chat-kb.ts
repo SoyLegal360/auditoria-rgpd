@@ -308,6 +308,20 @@ export const SERVICIOS: string[] = [
   "Otro",
 ];
 
+// Tipos de consulta para calificar el lead del chat (campo "Tipo de consulta" en Notion).
+// Fuente única de verdad: mantener idéntico al desplegable del widget (assets/js/chat.js)
+// y a las opciones del select de Notion. SIN comas en los nombres (Notion no las admite).
+export const TIPOS_CONSULTA: string[] = [
+  "Brecha o robo de datos",
+  "Auditoría (web/RGPD/IA)",
+  "Adaptación al RGPD",
+  "Cumplimiento de IA (AI Act)",
+  "DPO / Responsable de IA",
+  "Revisión de contratos",
+  "Ejercicio de derechos",
+  "Otro",
+];
+
 export function buildKbText(): string {
   return [
     `EMPRESA: ${KB.empresa}`,
