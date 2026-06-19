@@ -41,6 +41,19 @@ function comercialEvidence(source: string, receivedAt: string): string {
   return `[Consentimiento COMERCIAL: SÍ · vía ${source} · ${receivedAt} · casilla aceptada: "${texto}"]`;
 }
 
+// Nombre VISIBLE del canal en la columna "Tipo" de Notion (desacoplado del código interno
+// del formType, que NO se toca). Debe coincidir EXACTO con las opciones del select "Tipo".
+const TIPO_LABEL: Record<string, string> = {
+  auditoria: "Auditoría Web Express",
+  "auditoria-gratuita": "Auditoría web gratuita",
+  contacto: "Formulario de contacto",
+  "ejercicio-derechos": "Particulares (B2C)",
+  chat: "ClaudIA",
+};
+function tipoLabel(formType: string): string {
+  return TIPO_LABEL[formType] || formType;
+}
+
 // Guarda el lead como una fila en la base de datos de Notion y devuelve el page ID.
 async function saveToNotion(r: LeadRecord): Promise<string> {
   const res = await fetch("https://api.notion.com/v1/pages", {
@@ -69,7 +82,7 @@ async function saveToNotion(r: LeadRecord): Promise<string> {
         Comercial: { checkbox: !!r.marketingConsent },
         ...(r.marketingConsent ? { "Evidencia comercial": rt(comercialEvidence("auditoria", r.receivedAt)) } : {}),
         Estado: { select: { name: "Nuevo" } },
-        Tipo: { select: { name: "auditoria" } },
+        Tipo: { select: { name: tipoLabel("auditoria") } },
       },
     }),
     signal: AbortSignal.timeout(10000),
@@ -288,7 +301,7 @@ export async function saveContact(r: ContactRecord): Promise<string | null> {
             Nombre: rt(r.name || ""),
             "Teléfono": { phone_number: r.phone || null },
             Mensaje: rt(mensaje),
-            Tipo: { select: { name: r.formType } },
+            Tipo: { select: { name: tipoLabel(r.formType) } },
             Estado: { select: { name: "Nuevo" } },
             ...(r.servicio ? { Servicio: { select: { name: r.servicio } } } : {}),
             ...(r.tipoConsulta ? { "Tipo de consulta": { select: { name: r.tipoConsulta } } } : {}),
