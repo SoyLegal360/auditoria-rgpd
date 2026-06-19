@@ -89,10 +89,10 @@ function scoreBox(score: number, grade: string): string {
 }
 
 function htmlBody(i: ReportEmailInput): string {
-  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+  const saludo = i.name ? `Hola ${esc(i.name)}` : "Hola";
   const tier = i.tier || "warm";
   return shell(`<p style="font-size:15px;margin:0 0 14px">${saludo},</p>
-      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">Ya tienes tu <strong>diagnóstico RGPD de ${i.domain}</strong>. Lo encontrarás en el PDF adjunto, con el detalle por áreas y el análisis de tus textos legales.</p>
+      <p style="font-size:14px;line-height:1.5;margin:0 0 18px">Ya tienes tu <strong>diagnóstico RGPD de ${esc(i.domain)}</strong>. Lo encontrarás en el PDF adjunto, con el detalle por áreas y el análisis de tus textos legales.</p>
       ${scoreBox(i.score, i.grade)}
       <p style="font-size:14px;line-height:1.5;margin:0 0 6px">${ctaParagraph(tier)}</p>
       ${ctaBlock(tier)}`);
@@ -215,7 +215,7 @@ export async function sendContactNotification(i: ContactEmailInput): Promise<boo
 export async function sendContactAck(i: ContactEmailInput): Promise<boolean> {
   if (!emailEnabled()) return false;
   const meta = FORM_META[i.formType];
-  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+  const saludo = i.name ? `Hola ${esc(i.name)}` : "Hola";
   return sendViaResend({
     to: [i.email],
     subject: `Hemos recibido tu ${i.formType === "contacto" ? "mensaje" : "solicitud"} · SoyLegal360`,
@@ -248,14 +248,14 @@ export interface FollowupInput {
 
 export async function sendFollowupEmail(i: FollowupInput): Promise<boolean> {
   if (!emailEnabled()) return false;
-  const saludo = i.name ? `Hola ${i.name}` : "Hola";
+  const saludo = i.name ? `Hola ${esc(i.name)}` : "Hola";
   const recos = i.recommendations
     .slice(0, i.reportDelivered ? 3 : 5)
-    .map((r) => `<li style="margin:0 0 6px">${r}</li>`)
+    .map((r) => `<li style="margin:0 0 6px">${esc(r)}</li>`)
     .join("");
   const intro = i.reportDelivered
-    ? `Hace unos días te enviamos el <strong>diagnóstico RGPD de ${i.domain}</strong>. Por si no tuviste ocasión de revisarlo, este es el resumen:`
-    : `Hace unos días solicitaste el <strong>diagnóstico RGPD de ${i.domain}</strong> y no nos consta que el informe llegara bien, así que te lo resumimos aquí:`;
+    ? `Hace unos días te enviamos el <strong>diagnóstico RGPD de ${esc(i.domain)}</strong>. Por si no tuviste ocasión de revisarlo, este es el resumen:`
+    : `Hace unos días solicitaste el <strong>diagnóstico RGPD de ${esc(i.domain)}</strong> y no nos consta que el informe llegara bien, así que te lo resumimos aquí:`;
   return sendViaResend({
     to: [i.to],
     subject: i.reportDelivered
