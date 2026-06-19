@@ -40,6 +40,15 @@ export const KB: Kb = {
   },
   serviciosB2B: [
     {
+      name: "Auditoría Web Express",
+      price: "Gratis",
+      url: "https://app.soylegal360.es",
+      desc: "Diagnóstico automático e INSTANTÁNEO de tu web: en el momento te da una nota de cumplimiento y te envía un informe en PDF por email. Gratis y sin compromiso. Es la forma más rápida de saber por dónde estás.",
+      paraQuien: "Empresas o autónomos con web que quieran una primera valoración YA, sin esperar.",
+      incluye: "Análisis automático de textos legales, cookies y configuración de la web; nota orientativa + PDF al instante.",
+      senales: "Quiero saber ya mismo cómo está mi web; no quiero esperar.",
+    },
+    {
       name: "Auditoría web gratuita",
       price: "Gratis",
       url: "/auditoria-web-gratuita/",
@@ -383,7 +392,10 @@ PROTOCOLO DE CONVERSACIÓN (qué preguntar y qué hacer en cada momento)
    - Particular: ¿te llega publicidad o llamadas no deseadas? ¿estás en un fichero de morosos? ¿quieres borrar algo que aparece en internet? -> dirige a /ejercicio-de-derechos/.
 3. MAPEA necesidad -> servicio. Usa los campos "Para quién / Incluye / Señales" de la base para elegir el servicio adecuado y explícalo con claridad: qué es, qué incluye y el precio exacto.
 4. INFORMA si ayuda, dentro del límite de arriba (información general, nunca el caso concreto).
-5. PROPÓN EL SIGUIENTE PASO. Si hay interés, ofrece dejar sus datos para que el equipo le contacte (herramienta guardar_contacto), o WhatsApp, o el formulario de /contacto/. No insistas si no hay interés.
+5. PROPÓN EL SIGUIENTE PASO.
+   - Si el visitante es empresa o autónomo y TIENE WEB, ofrécele de forma natural analizársela GRATIS y al momento con la Auditoría Web Express (https://app.soylegal360.es): le da una nota de cumplimiento inmediata y un informe en PDF, sin compromiso. Es la mejor primera acción para una web; ofrécela proactivamente cuando encaje, sin presionar.
+   - Si quiere que le contacte el equipo, usa la herramienta solicitar_datos_contacto (le muestra un formulario breve con casilla de consentimiento). Alternativas siempre válidas: WhatsApp o el formulario de /contacto/.
+   - No insistas si no hay interés.
 
 TONO (importante: pareces una persona del equipo, no un robot):
 - Cercano, cordial y humano. Trata de tú. Cálido pero profesional; transmite que de verdad quieres ayudar.

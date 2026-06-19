@@ -54,6 +54,17 @@ function tipoLabel(formType: string): string {
   return TIPO_LABEL[formType] || formType;
 }
 
+// Prioridad automática del lead de chat según el tipo de consulta (campo "Prioridad" de Notion).
+// Brecha = urgente (hot); "Otro" = frío; el resto, templado (warm). El equipo puede sobrescribir.
+const PRIORIDAD_BY_TIPO: Record<string, "hot" | "warm" | "cold"> = {
+  "Brecha o robo de datos": "hot",
+  "Otro": "cold",
+};
+function prioridadPorTipo(tipoConsulta?: string): "hot" | "warm" | "cold" | undefined {
+  if (!tipoConsulta) return undefined;
+  return PRIORIDAD_BY_TIPO[tipoConsulta] || "warm";
+}
+
 // Guarda el lead como una fila en la base de datos de Notion y devuelve el page ID.
 async function saveToNotion(r: LeadRecord): Promise<string> {
   const res = await fetch("https://api.notion.com/v1/pages", {
@@ -305,6 +316,7 @@ export async function saveContact(r: ContactRecord): Promise<string | null> {
             Estado: { select: { name: "Nuevo" } },
             ...(r.servicio ? { Servicio: { select: { name: r.servicio } } } : {}),
             ...(r.tipoConsulta ? { "Tipo de consulta": { select: { name: r.tipoConsulta } } } : {}),
+            ...(prioridadPorTipo(r.tipoConsulta) ? { Prioridad: { select: { name: prioridadPorTipo(r.tipoConsulta)! } } } : {}),
             ...(r.marketingConsent ? { "Evidencia comercial": rt(comercialEvidence(r.formType, r.receivedAt)) } : {}),
             URL: { url: r.url || null },
             Recibido: { date: { start: r.receivedAt } },

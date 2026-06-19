@@ -1,6 +1,7 @@
 import { runChatStream, type ChatMessage, type PageContext } from "@/lib/chat";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { dailyBudget } from "@/lib/budget";
+import { logDemanda } from "@/lib/demanda";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -86,6 +87,9 @@ export async function POST(req: Request) {
   // 4) Presupuesto global diario (best-effort por instancia). Si se supera → handoff limpio.
   const budget = dailyBudget("chat:global", GLOBAL_DAILY_LIMIT);
   if (!budget.ok) return ndLine(req, handoff);
+
+  // 4b) Analítica de demanda ANÓNIMA (fire-and-forget, no bloquea la respuesta ni guarda PII).
+  void logDemanda(messages[messages.length - 1].content);
 
   const pageContext: PageContext | undefined = body.pageContext
     ? {
