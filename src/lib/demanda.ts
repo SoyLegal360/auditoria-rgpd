@@ -1,3 +1,5 @@
+import Anthropic from "@anthropic-ai/sdk";
+
 // Analítica de demanda ANÓNIMA de ClaudIA: registra SOLO {Tema, Fecha} de cada pregunta del
 // usuario, para saber qué se demanda (incluida la gente que no deja datos). Sin mensaje, sin
 // email, sin id de sesión → no es dato personal, no requiere consentimiento. Best-effort: si
@@ -7,6 +9,8 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 // ID de la base "Demanda · ClaudIA". No es un secreto (sin el token de Notion es inservible);
 // por eso va en código y no en env, para que funcione sin configurar nada más en Vercel.
 const DEMANDA_DB = process.env.NOTION_DEMANDA_DB || "9db25cc0b28241db995a69db502d4312";
+const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
+const ETIQUETA_MODEL = process.env.ANTHROPIC_MODEL_CHAT || "claude-haiku-4-5";
 
 export type Tema =
   | "Brecha o robo de datos"
@@ -61,10 +65,37 @@ export function clasificarTema(text: string): Tema {
   return "Otro";
 }
 
+// Para consultas sin categoría ("Otro"): genera una etiqueta de TEMA corta y ANÓNIMA
+// (2-4 palabras, sin datos personales) para entender la demanda no clasificada, SIN guardar el
+// mensaje literal. El mensaje va a Anthropic (ya es encargado y ya procesa el chat); aquí solo se
+// almacena la etiqueta, no el texto. Best-effort: si falla, devuelve "Otro".
+async function etiquetaAnonima(text: string): Promise<string> {
+  if (!ANTHROPIC_API_KEY) return "Otro";
+  try {
+    const client = new Anthropic({ apiKey: ANTHROPIC_API_KEY });
+    const msg = await client.messages.create({
+      model: ETIQUETA_MODEL,
+      max_tokens: 20,
+      temperature: 0,
+      system:
+        "Devuelve SOLO el tema de la consulta en 2-4 palabras, en minúsculas y en español, SIN ningún dato personal (nada de nombres, emails, teléfonos ni nombres de empresa concretos). Si no hay tema claro, responde exactamente: sin tema. No añadas comillas ni expliques nada.",
+      messages: [{ role: "user", content: text.slice(0, 500) }],
+    });
+    const raw = msg.content.map((b) => (b.type === "text" ? b.text : "")).join(" ").trim();
+    // Saneado de seguridad por si el modelo colara algo: quita emails y secuencias largas de dígitos.
+    const limpio = raw.replace(/[^\s@]+@[^\s@]+/g, "").replace(/\d{5,}/g, "").replace(/\s+/g, " ").trim();
+    return (limpio || "Otro").slice(0, 60);
+  } catch {
+    return "Otro";
+  }
+}
+
 // Registra una fila anónima en "Demanda · ClaudIA". No lanza: best-effort.
 export async function logDemanda(userText: string): Promise<void> {
   if (!NOTION_TOKEN) return;
   const tema = clasificarTema(userText);
+  // Para los "Otro", el título lleva una etiqueta de tema anónima (no el mensaje literal).
+  const evento = tema === "Otro" ? await etiquetaAnonima(userText) : tema;
   const ahora = new Date();
   const hoy = ahora.toISOString().slice(0, 10); // YYYY-MM-DD (fecha)
   // Hora 0-23 en horario español (Europe/Madrid), con cambio verano/invierno automático,
@@ -84,7 +115,7 @@ export async function logDemanda(userText: string): Promise<void> {
       body: JSON.stringify({
         parent: { database_id: DEMANDA_DB },
         properties: {
-          Evento: { title: [{ text: { content: tema } }] },
+          Evento: { title: [{ text: { content: evento } }] },
           Tema: { select: { name: tema } },
           Fecha: { date: { start: hoy } },
           Hora: { number: hora },
