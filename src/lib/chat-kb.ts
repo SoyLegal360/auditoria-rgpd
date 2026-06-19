@@ -242,7 +242,8 @@ export const KB: Kb = {
 
 export const INFO_RGPD: string[] = [
   "El RGPD (Reglamento UE 2016/679) y la LOPDGDD (Ley Orgánica 3/2018) aplican a quien trate datos personales en España: clientes, empleados, usuarios de la web, proveedores, etc.",
-  "Las personas tienen derechos sobre sus datos: acceso, rectificación, supresión ('derecho al olvido'), oposición, limitación y portabilidad. Una empresa debe poder atenderlos.",
+  "Las personas tienen derechos sobre sus datos, los clásicos 'ARCO' ampliados por el RGPD: acceso (art. 15 RGPD), rectificación (art. 16 RGPD), supresión o 'derecho al olvido' (art. 17 RGPD), oposición (art. 21 RGPD), limitación del tratamiento (art. 18 RGPD), portabilidad (art. 20 RGPD) y a no ser objeto de decisiones basadas solo en tratamiento automatizado, incluida la elaboración de perfiles (art. 22 RGPD). La LOPDGDD los desarrolla en su Título III.",
+  "Para atender un ejercicio de derechos (art. 12 RGPD): hay que responder por regla general en el plazo de 1 mes desde la solicitud (prorrogable otros 2 meses si es compleja, avisando al interesado), es gratuito por regla general, conviene verificar la identidad de quien lo pide, y NO responder es en sí un incumplimiento.",
   "Para tratar datos hace falta una base jurídica (art. 6 RGPD): consentimiento, ejecución de un contrato, obligación legal, interés legítimo, etc.",
   "Una web que recoge datos suele necesitar: aviso legal (información del prestador, LSSI art. 10), política de privacidad con la información del art. 13 RGPD, política de cookies, un sistema de consentimiento de cookies y formularios con casilla de consentimiento.",
   "Internamente, las empresas suelen necesitar un registro de actividades de tratamiento (art. 30) y contratos de encargado del tratamiento (art. 28) con los proveedores que tratan datos por su cuenta (hosting, gestoría, email marketing, etc.).",
