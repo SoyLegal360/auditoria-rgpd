@@ -65,7 +65,14 @@ export function clasificarTema(text: string): Tema {
 export async function logDemanda(userText: string): Promise<void> {
   if (!NOTION_TOKEN) return;
   const tema = clasificarTema(userText);
-  const hoy = new Date().toISOString().slice(0, 10); // YYYY-MM-DD, sin hora
+  const ahora = new Date();
+  const hoy = ahora.toISOString().slice(0, 10); // YYYY-MM-DD (fecha)
+  // Hora 0-23 en horario español (Europe/Madrid), con cambio verano/invierno automático,
+  // para analizar las horas de mayor actividad.
+  const hora = parseInt(
+    new Intl.DateTimeFormat("es-ES", { timeZone: "Europe/Madrid", hour: "numeric", hourCycle: "h23" }).format(ahora),
+    10,
+  );
   try {
     await fetch("https://api.notion.com/v1/pages", {
       method: "POST",
@@ -80,6 +87,7 @@ export async function logDemanda(userText: string): Promise<void> {
           Evento: { title: [{ text: { content: tema } }] },
           Tema: { select: { name: tema } },
           Fecha: { date: { start: hoy } },
+          Hora: { number: hora },
         },
       }),
       signal: AbortSignal.timeout(8000),
