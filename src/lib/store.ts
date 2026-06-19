@@ -27,6 +27,20 @@ function rt(text: string) {
   return { rich_text: [{ text: { content: (text || "").slice(0, 1990) } }] };
 }
 
+// Trazabilidad del consentimiento COMERCIAL (RGPD art. 7.1): cuándo, vía qué formulario
+// y el texto exacto de la casilla que aceptó el interesado. SIN IP (minimización).
+// Mantener estos textos sincronizados con la etiqueta real de cada formulario en la web.
+const MARKETING_LABELS: Record<string, string> = {
+  contacto: "Quiero recibir comunicaciones comerciales de SoyLegal360 (opcional).",
+  "auditoria-gratuita": "Quiero recibir comunicaciones comerciales de SoyLegal360 (opcional).",
+  "ejercicio-derechos": "Quiero recibir comunicaciones de SoyLegal360 sobre mis derechos (opcional).",
+  auditoria: "Quiero recibir comunicaciones comerciales de SoyLegal360 (opcional).",
+};
+function comercialEvidence(source: string, receivedAt: string): string {
+  const texto = MARKETING_LABELS[source] || "Consentimiento de comunicaciones comerciales.";
+  return `[Consentimiento COMERCIAL: SÍ · vía ${source} · ${receivedAt} · casilla aceptada: "${texto}"]`;
+}
+
 // Guarda el lead como una fila en la base de datos de Notion y devuelve el page ID.
 async function saveToNotion(r: LeadRecord): Promise<string> {
   const res = await fetch("https://api.notion.com/v1/pages", {
@@ -53,6 +67,8 @@ async function saveToNotion(r: LeadRecord): Promise<string> {
         Recibido: { date: { start: r.receivedAt } },
         "Análisis textos legales": rt(r.legalSummary || ""),
         Comercial: { checkbox: !!r.marketingConsent },
+        ...(r.marketingConsent ? { "Evidencia comercial": rt(comercialEvidence("auditoria", r.receivedAt)) } : {}),
+        Estado: { select: { name: "Nuevo" } },
         Tipo: { select: { name: "auditoria" } },
       },
     }),
@@ -273,8 +289,10 @@ export async function saveContact(r: ContactRecord): Promise<string | null> {
             "Teléfono": { phone_number: r.phone || null },
             Mensaje: rt(mensaje),
             Tipo: { select: { name: r.formType } },
+            Estado: { select: { name: "Nuevo" } },
             ...(r.servicio ? { Servicio: { select: { name: r.servicio } } } : {}),
             ...(r.tipoConsulta ? { "Tipo de consulta": { select: { name: r.tipoConsulta } } } : {}),
+            ...(r.marketingConsent ? { "Evidencia comercial": rt(comercialEvidence(r.formType, r.receivedAt)) } : {}),
             URL: { url: r.url || null },
             Recibido: { date: { start: r.receivedAt } },
             Comercial: { checkbox: !!r.marketingConsent },
