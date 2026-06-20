@@ -1,6 +1,6 @@
 import { promises as dns } from "dns";
 import tls from "tls";
-import { safeFetch } from "@/lib/safe-fetch";
+import { safeFetch, readBodyCapped } from "@/lib/safe-fetch";
 import { BONUS_IDS } from "@/lib/scope";
 
 export { BONUS_IDS };
@@ -139,7 +139,7 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
     });
     res = result.res;
     finalUrl = result.finalUrl;
-    html = await res.text();
+    html = await readBodyCapped(res); // tope ~3 MB (anti-DoS por respuesta gigante)
   } catch (e) {
     throw new Error("No se pudo acceder a la web. Revisa que la URL sea correcta y esté online. (" + (e as Error).message + ")");
   }

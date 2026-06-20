@@ -101,3 +101,31 @@ export async function safeFetch(
   }
   throw new Error("Demasiadas redirecciones.");
 }
+
+// Lee el body como texto con TOPE de tamaño (anti-DoS por respuesta gigante).
+// Corta la lectura al superar maxBytes (por defecto 3 MB) y descarta el resto.
+export async function readBodyCapped(res: Response, maxBytes = 3_000_000): Promise<string> {
+  if (!res.body) return await res.text();
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let html = "";
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.length;
+      if (total > maxBytes) {
+        const keep = value.length - (total - maxBytes);
+        html += decoder.decode(value.subarray(0, keep), { stream: true });
+        try { await reader.cancel(); } catch {}
+        break;
+      }
+      html += decoder.decode(value, { stream: true });
+    }
+  } finally {
+    html += decoder.decode(); // flush
+  }
+  return html;
+}
