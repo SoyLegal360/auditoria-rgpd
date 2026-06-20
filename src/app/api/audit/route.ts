@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { auditSite } from "@/lib/audit";
 import { logUsoExpress } from "@/lib/uso-express";
 
@@ -21,7 +21,8 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await auditSite(url);
-    void logUsoExpress(result.grade, result.score); // analítica anónima best-effort (sin await)
+    // Registro anónimo tras responder (after garantiza la ejecución en serverless).
+    after(() => logUsoExpress(result.grade, result.score));
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 422 });
