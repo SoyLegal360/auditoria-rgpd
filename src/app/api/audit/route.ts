@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auditSite } from "@/lib/audit";
+import { logUsoExpress } from "@/lib/uso-express";
 
 // El motor usa los módulos `tls` y `dns` de Node, así que necesita runtime Node (no Edge).
 export const runtime = "nodejs";
@@ -20,6 +21,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await auditSite(url);
+    void logUsoExpress(result.grade, result.score); // analítica anónima best-effort (sin await)
     return NextResponse.json(result);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 422 });
