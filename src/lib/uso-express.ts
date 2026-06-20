@@ -7,7 +7,7 @@ const NOTION_TOKEN = process.env.NOTION_TOKEN;
 // ID de la base "⚡ Uso · Auditoría Express". No es un secreto (sin el token es inservible).
 const USO_DB = process.env.NOTION_USO_EXPRESS_DB || "21f8c5fa0899493e86cb915f664cc532";
 
-export async function logUsoExpress(grade: string, score: number): Promise<void> {
+export async function logUsoExpress(grade: string, score: number, domain?: string): Promise<void> {
   if (!NOTION_TOKEN) return;
   const ahora = new Date();
   const hoy = ahora.toISOString().slice(0, 10); // YYYY-MM-DD
@@ -31,6 +31,8 @@ export async function logUsoExpress(grade: string, score: number): Promise<void>
           Hora: { number: hora },
           Nota: { select: { name: grade } },
           "Puntuación": { number: score },
+          // Dominio auditado (sobre el sitio, no sobre el usuario; sin IP ni datos personales).
+          ...(domain ? { Dominio: { rich_text: [{ text: { content: domain.slice(0, 120) } }] } } : {}),
         },
       }),
       signal: AbortSignal.timeout(8000),
