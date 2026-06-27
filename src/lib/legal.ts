@@ -50,12 +50,13 @@ export interface LegalTeaserDoc {
   found: boolean;
   readable: boolean;
   missingCount: number;
-  missing: string[];
+  missing: { label: string; severity: "fail" | "warn" }[];
 }
 export interface LegalTeaser {
   businessType: string;
   docs: LegalTeaserDoc[];
   forms: { issue: string | null };
+  note: string;
   disclaimer: string;
 }
 
@@ -248,10 +249,12 @@ Checklist por documento:
 REGLAS DE EXIGENCIA CONDICIONADA (para NO exigir de más):
 - DPD (art. 37 RGPD y art. 34.1 LOPDGDD): exige el delegado de protección de datos SOLO si el negocio encaja en los obligados del art. 34.1 LOPDGDD (colegios profesionales, centros docentes, centros sanitarios, aseguradoras, entidades financieras o de inversión, distribuidoras/comercializadoras de energía, operadores de telecomunicaciones/ISP, prestadores que elaboren perfiles o publicidad a gran escala, empresas de seguridad privada…) o si trata categorías especiales del art. 9 a gran escala. Si no hay indicios de eso, la ausencia de mención al DPD NO es una deficiencia: NO la incluyas. Si hay indicios razonables pero no concluyentes, inclúyelo con status "debil", severity "baja" y label "Delegado de Protección de Datos (verificar si aplica)".
 - TRANSFERENCIAS INTERNACIONALES (arts. 44-49 RGPD): exígelas SOLO si hay indicios en los datos aportados (rastreadores detectados en la web, o encargados/proveedores extracomunitarios mencionados en los propios textos: Google, Meta, Mailchimp, AWS…). Sin indicios, su ausencia NO es deficiencia.
+- DATOS REGISTRALES (art. 10.1.b LSSI, aviso legal): exígelos SOLO si el titular es una persona jurídica inscribible en el Registro Mercantil (denominación social tipo S.L., S.A., S.L.U., S. Coop., o CIF de letra A/B…). Si el titular es persona física o autónomo (nombre y apellidos, sin denominación social ni CIF), su ausencia NO es deficiencia: NO la incluyas. El NIF/DNI sí es obligatorio siempre (art. 10.1.e), también para autónomos.
+- DATO PRESENTE EN OTRO DOCUMENTO: si un dato obligatorio (p. ej. email de contacto o NIF) falta en el documento analizado pero aparece en OTRO de los documentos legales aportados del mismo sitio, no lo trates como inexistente: márcalo con status "debil" y severity "baja", e indica en "_fix" en qué documento sí aparece y la norma que lo exige SEGÚN el documento: el email y el NIF se exigen en el AVISO LEGAL por la LSSI-CE (art. 10.1.a y 10.1.e); en la POLÍTICA DE PRIVACIDAD el RGPD (art. 13.1.a) solo pide "datos de contacto" e "identidad" del responsable (no el email ni el NIF de forma literal).
 
 Para FORMULARIOS, evalúa los bloques de formulario reales aportados contra la cláusula informativa de primera capa (criterio AEPD): identidad del responsable; finalidad; base jurídica; derechos; enlace a la política de privacidad (segunda capa); consentimiento afirmativo con casilla NO premarcada; consentimiento de marketing en casilla SEPARADA de la de contacto. Si el formulario es un embed externo cargado por JavaScript (Tally, HubSpot…), NO lo evalúes como deficiencia: indícalo en "publicIssue"/"_notes" como pendiente de revisión manual (no es evaluable sin navegador).
 
-Transversales a revisar cuando apliquen: tratamiento de datos de menores (art. 8 LOPDGDD: consentimiento ≥14 años y control de edad); categorías especiales de datos (art. 9 RGPD: salud, ideología, etc. → consentimiento explícito y cláusula reforzada); uso de píxeles/SDK de redes sociales o publicidad (Meta, TikTok, Google Ads…) que deben informarse en privacidad/cookies y requieren consentimiento previo.
+Transversales a revisar cuando apliquen: tratamiento de datos de menores (art. 7 LOPDGDD: consentimiento ≥14 años y control de edad); categorías especiales de datos (art. 9 RGPD: salud, ideología, etc. → consentimiento explícito y cláusula reforzada); uso de píxeles/SDK de redes sociales o publicidad (Meta, TikTok, Google Ads…) que deben informarse en privacidad/cookies y requieren consentimiento previo.
 
 Usa las SEÑALES DE LA HOME para confirmar o corregir el tipo de negocio y deducir el SECTOR (sanitario, educación, finanzas, infancia…); aplica los transversales y la regla del DPD según ese sector.
 
@@ -308,6 +311,97 @@ function buildUserContent(
     parts.push("");
   }
   return parts.join("\n");
+}
+
+// ---------- Refinado por reglas (cruce entre documentos del propio sitio) ----------
+// Email y NIF se exigen en varios documentos (aviso legal Y, de hecho, privacidad).
+// Si faltan en uno pero el visitante los tiene en otro, es un dato MAL COLOCADO,
+// no inexistente → bajamos el tono y lo explicamos (evita el "pero si está en mi web").
+const EMAIL_DETECT = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i;
+// DNI (8 díg+letra), NIE (X/Y/Z+7 díg+letra) o CIF (letra+7 díg+control).
+const NIF_DETECT = /\b(?:[XYZ]?\d{7,8}[A-Z]|[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J])\b/i;
+// Indicios de persona jurídica inscribible en el Registro Mercantil.
+const SOCIEDAD_DETECT = /\bS\.?\s?L\.?(?:\s?U\.?)?\b|\bS\.?\s?A\.?\b|sociedad\s+(?:limitada|an[óo]nima)|\bS\.?\s?Coop\.?\b|\b[AB]\d{8}\b/i;
+
+interface CrossRefs {
+  ownEmail: Set<LegalDocType>; // documentos que SÍ contienen un email
+  ownNif: Set<LegalDocType>; // documentos que SÍ contienen un NIF/DNI/CIF
+  isSociedad: boolean; // ¿el titular es persona jurídica inscribible en el RM?
+}
+
+function detectCrossRefs(docsRaw: { type: LegalDocType; text: string }[]): CrossRefs {
+  const ownEmail = new Set<LegalDocType>();
+  const ownNif = new Set<LegalDocType>();
+  let isSociedad = false;
+  for (const d of docsRaw) {
+    if (EMAIL_DETECT.test(d.text)) ownEmail.add(d.type);
+    if (NIF_DETECT.test(d.text)) ownNif.add(d.type);
+    if (SOCIEDAD_DETECT.test(d.text)) isSociedad = true;
+  }
+  return { ownEmail, ownNif, isSociedad };
+}
+
+function otherDocsLabel(set: Set<LegalDocType>, exclude: LegalDocType): string {
+  const names = [...set].filter((t) => t !== exclude).map((t) => DOC_LABEL[t]);
+  return names.length ? names.join(" y ") : "";
+}
+
+// Cita y severidad del cruce SEGÚN el documento: el email/NIF son exigencia de la
+// LSSI-CE (art. 10) en el AVISO LEGAL; en la POLÍTICA DE PRIVACIDAD lo que pide el
+// RGPD (art. 13.1.a) son "datos de contacto" del responsable (no el email literal).
+function crossRefNote(
+  kind: "email" | "nif",
+  type: LegalDocType,
+  where: string,
+): { label: string; severity: LegalElement["severity"] } {
+  if (kind === "email") {
+    if (type === "aviso-legal")
+      return { label: `Email de contacto: consta en tu ${where}, pero la LSSI-CE (art. 10.1.a) exige que figure también en el aviso legal.`, severity: "baja" };
+    if (type === "privacidad")
+      return { label: `Datos de contacto del responsable: tu email consta en tu ${where}; el RGPD (art. 13.1.a) pide datos de contacto en la política de privacidad (vale email u otro canal efectivo).`, severity: "baja" };
+    return { label: `Email de contacto: consta en tu ${where}.`, severity: "baja" };
+  }
+  if (type === "aviso-legal")
+    return { label: `NIF/DNI del titular: consta en tu ${where}, pero la LSSI-CE (art. 10.1.e) exige que figure también en el aviso legal.`, severity: "baja" };
+  if (type === "privacidad")
+    return { label: `Identidad del responsable: el RGPD (art. 13.1.a) pide la identidad, no el NIF; tu NIF consta en tu ${where}.`, severity: "baja" };
+  return { label: `NIF/DNI del titular: consta en tu ${where}.`, severity: "baja" };
+}
+
+// Aplica las reglas de cruce/encaje a los elementos que devolvió Claude para un documento.
+function refineElements(type: LegalDocType, elements: LegalElement[], cross: CrossRefs): LegalElement[] {
+  const out: LegalElement[] = [];
+  for (const e of elements) {
+    const hay = `${e.label || ""} ${e.id || ""}`.toLowerCase();
+    const isEmail = /e-?mail|correo/.test(hay);
+    const isNif = /\bnif\b|\bdni\b|identificaci[óo]n fiscal/.test(hay);
+    const isRegistral = /registr/.test(hay);
+
+    // Datos registrales (art. 10.1.b LSSI): solo para sociedades inscribibles en el RM.
+    if (isRegistral && !cross.isSociedad) continue;
+
+    // Email presente en OTRO documento del sitio → mal colocado, no ausente.
+    // La cita depende del documento: LSSI-CE (aviso legal) vs RGPD (privacidad).
+    if (isEmail && !cross.ownEmail.has(type)) {
+      const where = otherDocsLabel(cross.ownEmail, type);
+      if (where) {
+        const note = crossRefNote("email", type, where);
+        out.push({ ...e, status: "debil", severity: note.severity, label: note.label });
+        continue;
+      }
+    }
+    // NIF/DNI presente en OTRO documento del sitio → mal colocado, no ausente.
+    if (isNif && !cross.ownNif.has(type)) {
+      const where = otherDocsLabel(cross.ownNif, type);
+      if (where) {
+        const note = crossRefNote("nif", type, where);
+        out.push({ ...e, status: "debil", severity: note.severity, label: note.label });
+        continue;
+      }
+    }
+    out.push(e);
+  }
+  return out;
 }
 
 // ---------- Orquestador principal ----------
@@ -411,10 +505,11 @@ export async function analyzeLegal(
       forms?: { consentTextQuality?: FormAnalysis["consentTextQuality"]; _notes?: string; publicIssue?: string | null };
     };
 
+    const cross = detectCrossRefs(docsRaw);
     const docs: LegalDocAnalysis[] = types.map((type) => {
       const raw = docsRaw.find((d) => d.type === type)!;
       const ana = parsed.docs?.find((d) => d.type === type);
-      const elements = Array.isArray(ana?.elements) ? ana!.elements : [];
+      const elements = refineElements(type, Array.isArray(ana?.elements) ? ana!.elements : [], cross);
       const missingCount = elements.filter((e) => e.status === "ausente" || e.status === "debil").length;
       return {
         type,
@@ -463,9 +558,12 @@ export function toPublicTeaser(a: LegalAnalysis): LegalTeaser {
       found: d.found,
       readable: d.readable,
       missingCount: d.missingCount,
-      missing: d.elements.filter((e) => e.status === "ausente" || e.status === "debil").map((e) => e.label),
+      missing: d.elements
+        .filter((e) => e.status === "ausente" || e.status === "debil")
+        .map((e) => ({ label: e.label, severity: e.status === "ausente" ? ("fail" as const) : ("warn" as const) })),
     })),
     forms: { issue: a.forms.publicIssue },
+    note: "Analizamos cada documento por separado: un dato puede existir en tu web pero faltar en el documento concreto donde la ley exige que aparezca.",
     disclaimer: DISCLAIMER,
   };
 }

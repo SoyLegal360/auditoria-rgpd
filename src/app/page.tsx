@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { BONUS_IDS } from "@/lib/scope";
+import { FINDING_META, type FindingRisk } from "@/lib/finding-meta";
 import type { AuditResult, Finding, Severity } from "@/lib/audit";
 import type { LegalTeaser } from "@/lib/legal";
 
@@ -30,29 +31,6 @@ const CATEGORIES: { key: Finding["category"]; label: string; icon: string }[] = 
 
 const TECH_CHIPS = ["HTTPS · SSL", "Cookies", "Rastreadores", "Textos legales", "SPF · DMARC"];
 
-type FindingRisk = "critico" | "alto" | "medio" | "bajo";
-interface FindingMeta { article: string; fix: string; risk: FindingRisk }
-const FINDING_META: Partial<Record<string, FindingMeta>> = {
-  "https":                     { article: "Art. 32 RGPD",               risk: "critico", fix: "Activa HTTPS en tu hosting (certificado SSL gratuito con Let's Encrypt). Es imprescindible." },
-  "ssl-exp":                   { article: "Art. 32 RGPD",               risk: "alto",    fix: "Renueva el certificado SSL desde el panel de tu hosting antes de que caduque." },
-  "strict-transport-security": { article: "Art. 32 RGPD",               risk: "medio",   fix: "Añade la cabecera HTTP: Strict-Transport-Security: max-age=31536000; includeSubDomains" },
-  "x-content-type-options":    { article: "Art. 32 RGPD",               risk: "bajo",    fix: "Añade la cabecera HTTP: X-Content-Type-Options: nosniff" },
-  "content-security-policy":   { article: "Art. 32 RGPD",               risk: "medio",   fix: "Configura una Content-Security-Policy básica para restringir scripts no autorizados." },
-  "referrer-policy":           { article: "Art. 32 RGPD",               risk: "bajo",    fix: "Añade la cabecera HTTP: Referrer-Policy: strict-origin-when-cross-origin" },
-  "mixed-content":             { article: "Art. 32 RGPD",               risk: "medio",   fix: "Cambia todas las URLs de recursos (imágenes, scripts, CSS) de http:// a https://." },
-  "cookies-load":              { article: "Art. 22 LSSI / RGPD",        risk: "alto",    fix: "Bloquea las cookies no técnicas hasta que el usuario las acepte en el banner." },
-  "trackers":                  { article: "Art. 6 RGPD / Art. 22 LSSI", risk: "critico", fix: "Configura tu gestor de consentimiento (Cookiebot, CookieYes…) para bloquear rastreadores hasta el consentimiento." },
-  "banner":                    { article: "Art. 22 LSSI / Guía AEPD",   risk: "alto",    fix: "Implementa un banner con opciones Aceptar, Rechazar y Configurar de igual visibilidad (Guía AEPD 2023)." },
-  "form-embed":                { article: "Art. 13 RGPD",               risk: "medio",   fix: "Comprueba que el formulario externo muestre cláusula informativa y casilla de consentimiento no premarcada." },
-  "embeds":                    { article: "Arts. 6 y 49 RGPD",          risk: "medio",   fix: "Usa versiones sin cookies (p.ej. youtube-nocookie.com) o bloquea el embed hasta el consentimiento." },
-  "privacidad":                { article: "Art. 13 RGPD",               risk: "critico", fix: "Redacta y publica una Política de Privacidad conforme al art. 13 RGPD (responsable, base jurídica, derechos…)." },
-  "aviso-legal":               { article: "Art. 10 LSSI-CE",            risk: "alto",    fix: "Añade el Aviso Legal con denominación, NIF, domicilio, email de contacto y Registro Mercantil." },
-  "cookies-pol":               { article: "Art. 22 LSSI-CE",            risk: "alto",    fix: "Publica una Política de Cookies con el inventario completo (nombre, tipo, finalidad, duración de cada cookie)." },
-  "form-consent":              { article: "Art. 7 RGPD",                risk: "alto",    fix: "Añade una casilla no premarcada con enlace a la política de privacidad en cada formulario de recogida de datos." },
-  "spf":                       { article: "RFC 7208 / Seg. correo",     risk: "medio",   fix: 'Añade un registro TXT SPF en tu DNS: v=spf1 include:[tu-proveedor].com ~all' },
-  "dkim":                      { article: "RFC 6376 / Seg. correo",     risk: "medio",   fix: "Activa DKIM en el panel de tu proveedor de correo (Hostinger → Email → Configuración DKIM)." },
-  "dmarc":                     { article: "RFC 7489 / Seg. correo",     risk: "bajo",    fix: 'Crea el registro DNS: _dmarc.tudominio.com TXT "v=DMARC1; p=quarantine; rua=mailto:admin@tudominio.com"' },
-};
 const RISK_LABEL: Record<FindingRisk, string> = {
   critico: "Riesgo crítico", alto: "Riesgo alto", medio: "Riesgo medio", bajo: "Riesgo bajo",
 };
@@ -408,6 +386,10 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
         <span className="font-sans text-[11px] uppercase tracking-wide text-muted">IA · orientativo</span>
       </div>
 
+      {teaser.note && (
+        <p className="mt-2 font-sans text-xs leading-relaxed text-muted">{teaser.note}</p>
+      )}
+
       <ul className="mt-4 space-y-3">
         {teaser.docs.map((d) => {
           const ok = d.found && d.readable && d.missingCount === 0;
@@ -431,7 +413,7 @@ function LegalTeaserSection({ loading, teaser }: { loading: boolean; teaser: Leg
                 )}
               </p>
               {d.missing.length > 0 && (
-                <p className="mt-1 font-sans text-sm text-muted">{d.missing.join(" · ")}</p>
+                <p className="mt-1 font-sans text-sm text-muted">{d.missing.map((m) => m.label).join(" · ")}</p>
               )}
             </li>
           );

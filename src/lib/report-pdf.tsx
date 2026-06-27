@@ -9,6 +9,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import { BONUS_IDS } from "@/lib/scope";
+import { FINDING_META } from "@/lib/finding-meta";
 import type { AuditResult } from "@/lib/audit";
 import type { LegalTeaser } from "@/lib/legal";
 import { LOGO_COLOR_DATA_URI } from "@/lib/logo-data";
@@ -50,7 +51,7 @@ const styles = StyleSheet.create({
   scoreMeta: { flex: 1 },
   scoreLabel: { fontSize: 9, color: MUTED, textTransform: "uppercase", letterSpacing: 1 },
   scoreSummary: { fontSize: 10.5, color: INK, marginTop: 4, lineHeight: 1.4 },
-  section: { marginBottom: 18 },
+  section: { marginBottom: 14 },
   sectionTitle: {
     fontSize: 12, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 8,
     borderBottomWidth: 1.5, borderBottomColor: GOLD, paddingBottom: 4,
@@ -66,7 +67,19 @@ const styles = StyleSheet.create({
   ctaBox: { backgroundColor: "#f6f1e7", borderLeftWidth: 3, borderLeftColor: GOLD, padding: 12, marginTop: 6, borderRadius: 4 },
   ctaTitle: { fontSize: 10.5, fontFamily: "Helvetica-Bold", color: NAVY, marginBottom: 3 },
   ctaText: { fontSize: 9.5, color: INK, lineHeight: 1.4 },
+  ctaHighlight: { fontFamily: "Helvetica-Bold", color: GOLD },
   ctaLink: { fontSize: 9.5, color: GOLD, marginTop: 8, textDecoration: "underline" },
+  intro: { fontSize: 9.5, color: MUTED, lineHeight: 1.5, marginBottom: 12 },
+  semRow: { flexDirection: "row", gap: 3, marginTop: 5, marginBottom: 6 },
+  semCell: { flex: 1, paddingVertical: 3, borderRadius: 3, alignItems: "center" },
+  semText: { fontSize: 9, fontFamily: "Helvetica-Bold" },
+  bulletRow: { flexDirection: "row", marginBottom: 3, paddingLeft: 4 },
+  bulletDot: { width: 4, height: 4, borderRadius: 2, marginTop: 3.5, marginRight: 6 },
+  bulletText: { flex: 1, fontSize: 9.5, color: INK, lineHeight: 1.35 },
+  noteBox: { backgroundColor: "#fbf6ef", borderLeftWidth: 2, borderLeftColor: GOLD, padding: 8, marginTop: 4 },
+  noteText: { fontSize: 8.5, color: INK, lineHeight: 1.45 },
+  bold: { fontFamily: "Helvetica-Bold" },
+  about: { fontSize: 8, color: MUTED, lineHeight: 1.45, marginTop: 10 },
   disclaimer: { fontSize: 8, color: MUTED, marginTop: 14, lineHeight: 1.4, fontStyle: "italic" },
   footer: {
     position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: NAVY,
@@ -105,6 +118,7 @@ export interface ReportData {
   recommendations: string[];
   categories: { key: string; worst: string }[];
   extra: { key: string; worst: string }[];
+  technical: { label: string; fix: string; severity: "fail" | "warn" }[];
   legal?: LegalTeaser | null;
   generatedAt: string;
 }
@@ -141,6 +155,12 @@ export function buildReportData(
     .filter((c) => c.n > 0)
     .map(({ key, worst }) => ({ key, worst }));
 
+  // Mejoras técnicas (cortesía): los hallazgos "bonus" con fallo/mejora, con su
+  // arreglo concreto. NO es lo que vendemos → aquí sí damos la solución hecha.
+  const technical = audit.findings
+    .filter((f) => BONUS_IDS.has(f.id) && (f.severity === "fail" || f.severity === "warn"))
+    .map((f) => ({ label: f.label, fix: FINDING_META[f.id]?.fix || f.detail, severity: f.severity as "fail" | "warn" }));
+
   return {
     domain: audit.domain,
     finalUrl: audit.finalUrl,
@@ -150,9 +170,51 @@ export function buildReportData(
     recommendations,
     categories,
     extra,
+    technical,
     legal,
     generatedAt: new Date().toLocaleDateString("es-ES", { day: "2-digit", month: "long", year: "numeric" }),
   };
+}
+
+// Helvetica (WinAnsi) del PDF no incluye la flecha "→": la cambiamos por ">" para
+// que no salga como carácter roto en los textos dinámicos (recomendaciones, arreglos).
+const pdfSafe = (s: string) => s.replace(/[→⟶➝➔]/g, ">");
+
+const SEV_DOT: Record<string, string> = { fail: "#dc2626", warn: "#d97706" };
+const GRADES = ["A", "B", "C", "D", "E"];
+
+// Escala A-E con la nota actual resaltada (semáforo de cumplimiento).
+function Semaforo({ grade }: { grade: string }) {
+  return (
+    <View style={styles.semRow}>
+      {GRADES.map((g) => {
+        const active = g === grade;
+        return (
+          <View
+            key={g}
+            style={[
+              styles.semCell,
+              active
+                ? { backgroundColor: GRADE_COLOR[g] || NAVY, borderWidth: 1.5, borderColor: NAVY }
+                : { backgroundColor: "#eef1f5" },
+            ]}
+          >
+            <Text style={[styles.semText, { color: active ? "#ffffff" : MUTED }]}>{g}</Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
+// Viñeta con punto de color según severidad (rojo fallo / ámbar mejorable).
+function Bullet({ severity, children }: { severity: "fail" | "warn"; children: string }) {
+  return (
+    <View style={styles.bulletRow} wrap={false}>
+      <View style={[styles.bulletDot, { backgroundColor: SEV_DOT[severity] || MUTED }]} />
+      <Text style={styles.bulletText}>{children}</Text>
+    </View>
+  );
 }
 
 function ReportDoc({ data }: { data: ReportData }) {
@@ -171,8 +233,14 @@ function ReportDoc({ data }: { data: ReportData }) {
 
         <View style={styles.body}>
           <Text style={styles.h1}>Informe de diagnóstico RGPD</Text>
-          <Text style={styles.domain}>
+          <Text style={[styles.domain, { marginBottom: 10 }]}>
             {data.domain} · {data.generatedAt}
+          </Text>
+
+          <Text style={styles.intro}>
+            Este informe resume el estado de cumplimiento de {data.domain} en protección de datos
+            (RGPD y LOPDGDD) y normativa digital (LSSI-CE), a partir de un análisis automático.
+            Señalamos qué revisar, por qué importa y con qué prioridad. Es un diagnóstico orientativo.
           </Text>
 
           <View style={styles.scoreRow}>
@@ -182,13 +250,13 @@ function ReportDoc({ data }: { data: ReportData }) {
             </View>
             <View style={styles.scoreMeta}>
               <Text style={styles.scoreLabel}>Calificación</Text>
-              <Text style={[styles.gradeBig, { color: GRADE_COLOR[data.grade] || INK }]}>{data.grade}</Text>
-              <Text style={styles.scoreSummary}>{data.summary}</Text>
+              <Semaforo grade={data.grade} />
+              <Text style={styles.scoreSummary}>{pdfSafe(data.summary)}</Text>
             </View>
           </View>
 
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Resumen por áreas</Text>
+            <Text style={styles.sectionTitle} minPresenceAhead={70}>Resumen por áreas</Text>
             {data.categories.map((c) => {
               const sev = SEV_LABEL[c.worst] || SEV_LABEL.info;
               return (
@@ -200,9 +268,57 @@ function ReportDoc({ data }: { data: ReportData }) {
             })}
           </View>
 
+          {data.recommendations.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle} minPresenceAhead={70}>Prioridades de cumplimiento (RGPD · LOPDGDD · LSSI-CE)</Text>
+              {data.recommendations.map((r, i) => (
+                <Text style={styles.reco} key={i}>{i + 1}. {pdfSafe(r)}</Text>
+              ))}
+              <View style={styles.noteBox} wrap={false}>
+                <Text style={styles.noteText}>
+                  <Text style={styles.bold}>Por qué importa: </Text>
+                  el incumplimiento del RGPD, la LOPDGDD y la LSSI-CE puede ser sancionado por la AEPD.
+                  El procedimiento puede iniciarse por la reclamación de un afectado (un cliente o un
+                  ex-trabajador descontento, incluso un competidor) o de oficio por la propia AEPD.
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {data.legal && data.legal.docs.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle} minPresenceAhead={70}>Análisis de tus textos legales</Text>
+              {data.legal.note && (
+                <Text style={[styles.docStatus, { marginBottom: 8 }]}>{pdfSafe(data.legal.note)}</Text>
+              )}
+              {data.legal.docs.map((d) => (
+                <View style={styles.docBlock} key={d.type} wrap={false}>
+                  <Text style={styles.docTitle}>{d.label}</Text>
+                  {!d.found ? (
+                    <Text style={styles.docStatus}>No se ha localizado este documento en la web.</Text>
+                  ) : !d.readable ? (
+                    <Text style={styles.docStatus}>Documento detectado pero no legible (posible carga por JavaScript).</Text>
+                  ) : d.missingCount === 0 ? (
+                    <Text style={styles.docStatus}>Sin deficiencias destacadas en el diagnóstico orientativo.</Text>
+                  ) : (
+                    <>
+                      <Text style={styles.docStatus}>{d.missingCount} elemento(s) a revisar:</Text>
+                      {d.missing.map((m, i) => (
+                        <Bullet key={i} severity={m.severity}>{pdfSafe(m.label)}</Bullet>
+                      ))}
+                    </>
+                  )}
+                </View>
+              ))}
+              {data.legal.forms.issue && (
+                <Bullet severity="warn">{`Formularios: ${pdfSafe(data.legal.forms.issue)}`}</Bullet>
+              )}
+            </View>
+          )}
+
           {data.extra.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Seguridad adicional (cortesía)</Text>
+              <Text style={styles.sectionTitle} minPresenceAhead={70}>Seguridad adicional (cortesía)</Text>
               <Text style={[styles.docStatus, { marginBottom: 6 }]}>
                 Comprobaciones técnicas fuera del alcance RGPD que revisamos como valor añadido.
               </Text>
@@ -218,54 +334,43 @@ function ReportDoc({ data }: { data: ReportData }) {
             </View>
           )}
 
-          {data.legal && data.legal.docs.length > 0 && (
+          {data.technical.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Análisis de tus textos legales</Text>
-              {data.legal.docs.map((d) => (
-                <View style={styles.docBlock} key={d.type}>
-                  <Text style={styles.docTitle}>{d.label}</Text>
-                  {!d.found ? (
-                    <Text style={styles.docStatus}>No se ha localizado este documento en la web.</Text>
-                  ) : !d.readable ? (
-                    <Text style={styles.docStatus}>Documento detectado pero no legible (posible carga por JavaScript).</Text>
-                  ) : d.missingCount === 0 ? (
-                    <Text style={styles.docStatus}>Sin deficiencias destacadas en el diagnóstico orientativo.</Text>
-                  ) : (
-                    <>
-                      <Text style={styles.docStatus}>{d.missingCount} elemento(s) a revisar:</Text>
-                      {d.missing.map((m, i) => (
-                        <Text style={styles.missing} key={i}>• {m}</Text>
-                      ))}
-                    </>
-                  )}
-                </View>
-              ))}
-              {data.legal.forms.issue && (
-                <Text style={styles.missing}>• Formularios: {data.legal.forms.issue}</Text>
-              )}
-            </View>
-          )}
-
-          {data.recommendations.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Recomendaciones prioritarias</Text>
-              {data.recommendations.map((r, i) => (
-                <Text style={styles.reco} key={i}>{i + 1}. {r}</Text>
+              <Text style={styles.sectionTitle} minPresenceAhead={70}>Mejoras técnicas (cortesía)</Text>
+              <Text style={[styles.docStatus, { marginBottom: 6 }]}>
+                Fuera del núcleo RGPD, pero las dejamos resueltas como valor añadido.
+              </Text>
+              {data.technical.map((t, i) => (
+                <Bullet key={i} severity={t.severity}>{`${pdfSafe(t.label)}: ${pdfSafe(t.fix)}`}</Bullet>
               ))}
             </View>
           )}
 
-          <View style={styles.ctaBox}>
+          <View style={styles.section} wrap={false}>
+            <Text style={styles.sectionTitle} minPresenceAhead={70}>Próximos pasos</Text>
+            <Text style={styles.reco}>1. Corrige primero las prioridades de cumplimiento (RGPD, LOPDGDD y LSSI-CE).</Text>
+            <Text style={styles.reco}>2. Aplica las mejoras técnicas de cortesía cuando puedas.</Text>
+            <Text style={styles.reco}>3. ¿Prefieres que lo hagamos por ti? Escríbenos y lo dejamos conforme.</Text>
+          </View>
+
+          <View style={styles.ctaBox} wrap={false}>
             <Text style={styles.ctaTitle}>¿Quieres dejar tu web 100% conforme?</Text>
             <Text style={styles.ctaText}>
-              Con la Adaptación Web RGPD (desde 390€) nuestro equipo legal redacta y certifica
-              tus textos legales a medida: Aviso Legal, Política de Privacidad, Política de Cookies y
-              consentimiento de formularios. Escríbenos a hola@soylegal360.es o responde a este correo.
+              Con la <Text style={styles.ctaHighlight}>Adaptación Web RGPD (desde 390 €)</Text> nuestro
+              equipo legal redacta y certifica tus textos legales a medida: Aviso Legal, Política de
+              Privacidad, Política de Cookies y consentimiento de formularios. Escríbenos a
+              hola@soylegal360.es o responde a este correo.
             </Text>
             <Link style={styles.ctaLink} src="https://www.soylegal360.es/servicios-proteccion-de-datos/">
-              → Ver nuestros servicios de protección de datos en soylegal360.es
+              Ver nuestros servicios de protección de datos en soylegal360.es
             </Link>
           </View>
+
+          <Text style={styles.about}>
+            <Text style={styles.bold}>Sobre SoyLegal360: </Text>
+            consultoría española de protección de datos (RGPD, LOPDGDD, LSSI-CE) y AI Act para pymes,
+            autónomos y particulares. Cumplimiento real para negocios reales, sin plantillas genéricas.
+          </Text>
 
           <Text style={styles.disclaimer}>
             {data.legal?.disclaimer ||

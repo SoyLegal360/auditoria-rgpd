@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { BONUS_IDS } from "@/lib/scope";
 import type { AuditResult } from "@/lib/audit";
 
 export interface LeadContact {
@@ -34,14 +35,15 @@ Recibes el resultado de una auditoría RGPD automática de la web de un visitant
    - "warm": fallos moderados o solo mejorables → interés real pero menos urgente.
    - "cold": web casi conforme (nota A/B) → poco que vender ahora.
 
-2. Redactar para el VISITANTE un resumen claro y 3-5 recomendaciones accionables, en español de España, tono profesional y cercano, sin tecnicismos innecesarios y sin alarmismo falso. Cada recomendación: una frase concreta de qué corregir y por qué importa legalmente. No inventes hallazgos que no estén en la auditoría. No prometas resultados garantizados ni des asesoramiento jurídico vinculante.
+2. Redactar para el VISITANTE un resumen claro y 3-4 recomendaciones, SOLO a partir de los hallazgos marcados [NÚCLEO] (RGPD/LOPDGDD/LSSI-CE). IGNORA los marcados [CORTESÍA] (cabeceras de seguridad, SPF/DKIM/DMARC): esos van en otro bloque del informe, no aquí. Cada recomendación: qué incumple, el artículo aplicable y por qué importa (riesgo de sanción o reclamación ante la AEPD), en una o dos frases. NO des la solución terminada ni el texto legal ya redactado: el visitante debe entender QUÉ está mal y por qué, pero la corrección (redacción y adaptación de los textos legales a medida) es nuestro servicio. Español de España, tono profesional y cercano, sin alarmismo falso. No inventes hallazgos que no estén en la auditoría. No des asesoramiento jurídico vinculante.
 
 Responde SIEMPRE en JSON válido, sin texto fuera del JSON, con esta forma exacta:
 {"tier":"hot|warm|cold","tierReason":"una frase para el equipo comercial","summary":"2-3 frases para el visitante","recommendations":["...","..."]}`;
 
 function auditToText(audit: AuditResult, contact: LeadContact): string {
   const lines = audit.findings.map(
-    (f) => `- [${f.severity.toUpperCase()}] (${f.category}) ${f.label}: ${f.detail}`,
+    (f) =>
+      `- [${f.severity.toUpperCase()}] [${BONUS_IDS.has(f.id) ? "CORTESÍA" : "NÚCLEO"}] (${f.category}) ${f.label}: ${f.detail}`,
   );
   return [
     `Web auditada: ${audit.finalUrl} (dominio ${audit.domain})`,
@@ -56,11 +58,13 @@ function auditToText(audit: AuditResult, contact: LeadContact): string {
 // Cualificación de respaldo basada en reglas, por si no hay API key o falla la llamada.
 // Exportada para que /api/lead pueda usarla en la fase rápida (antes de responder).
 export function fallbackQualify(audit: AuditResult): LeadQualification {
-  const fails = audit.findings.filter((f) => f.severity === "fail");
-  const warns = audit.findings.filter((f) => f.severity === "warn");
+  // Recomendaciones (públicas) solo del NÚCLEO: las de cortesía van en su propio bloque.
+  const core = audit.findings.filter((f) => !BONUS_IDS.has(f.id));
+  const fails = core.filter((f) => f.severity === "fail");
+  const warns = core.filter((f) => f.severity === "warn");
   const tier: LeadTier = audit.score < 55 ? "hot" : audit.score < 85 ? "warm" : "cold";
   const recommendations = [...fails, ...warns]
-    .slice(0, 5)
+    .slice(0, 4)
     .map((f) => `${f.label}: ${f.detail}`);
   return {
     tier,
