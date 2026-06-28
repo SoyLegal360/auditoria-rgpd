@@ -192,21 +192,35 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
     findings.push({ id: "cookies-load", category: "cookies", label: "Cookies en la primera carga", severity: "warn", detail: "El servidor instala cookies ya en la primera visita. Si no son estrictamente necesarias, deben requerir consentimiento previo (art. 22 LSSI / RGPD)." });
   }
 
+  // Señales de gestor de consentimiento (CMP) — AGNÓSTICO a la marca. Detectar uno
+  // no prueba que bloquee bien (eso exige navegador headless), pero permite NO marcar
+  // los rastreadores como incumplimiento grave cuando hay consentimiento gestionado:
+  // rebajamos a "verificar" en lugar de generar un falso positivo.
+  const hasCmp = /cookiebot|cookieyes|onetrust|optanon|complianz|iubenda|didomi|borlabs|osano|termly|cookiefirst|usercentrics|klaro|tarteaucitron|cookie-?script|gtag\(\s*['"]consent['"]|consent\s*mode|data-cookieconsent|data-cookiecategor/i.test(html);
+
   const foundTrackers = TRACKERS.filter((t) => t.re.test(html)).map((t) => t.name);
   if (foundTrackers.length) {
-    findings.push({ id: "trackers", category: "cookies", label: "Rastreadores de terceros", severity: "fail", detail: `Detectados: ${foundTrackers.join(", ")}. Estos rastreadores NO deben cargarse antes de obtener el consentimiento del usuario.` });
+    findings.push({
+      id: "trackers",
+      category: "cookies",
+      label: "Rastreadores de terceros",
+      severity: hasCmp ? "warn" : "fail",
+      detail: hasCmp
+        ? `Detectados: ${foundTrackers.join(", ")}. También se detecta un gestor de consentimiento; no podemos confirmar (sin cargar la web) que los bloquee antes del consentimiento. Verifícalo rechazando cookies y mirando la pestaña Red del navegador.`
+        : `Detectados: ${foundTrackers.join(", ")}. Estos rastreadores NO deben cargarse antes de obtener el consentimiento del usuario.`,
+    });
   } else {
     findings.push({ id: "trackers", category: "cookies", label: "Rastreadores de terceros", severity: "ok", detail: "No se detectaron rastreadores publicitarios/analíticos comunes en el HTML inicial." });
   }
 
-  const hasBanner = /(cookie|consent|gdpr|rgpd)/i.test(html) && /(aceptar|acepto|rechazar|configurar|consent)/i.test(htmlLower);
+  const hasBanner = hasCmp || (/(cookie|consent|gdpr|rgpd)/i.test(html) && /(aceptar|acepto|rechazar|configurar)/i.test(htmlLower));
   if (foundTrackers.length || setCookie) {
     findings.push({
       id: "banner",
       category: "cookies",
       label: "Banner de consentimiento de cookies",
       severity: hasBanner ? "ok" : "warn",
-      detail: hasBanner ? "Se detectan indicios de un banner de cookies." : "No se detecta un banner de consentimiento claro, pese a usar cookies/rastreadores.",
+      detail: hasBanner ? "Se detecta un gestor o banner de consentimiento de cookies." : "No se detecta un banner de consentimiento claro, pese a usar cookies/rastreadores.",
     });
   }
 

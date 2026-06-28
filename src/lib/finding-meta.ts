@@ -17,7 +17,7 @@ export const FINDING_META: Partial<Record<string, FindingMeta>> = {
   "referrer-policy":           { article: "Art. 32 RGPD",               risk: "bajo",    fix: "Añade la cabecera HTTP: Referrer-Policy: strict-origin-when-cross-origin" },
   "mixed-content":             { article: "Art. 32 RGPD",               risk: "medio",   fix: "Cambia todas las URLs de recursos (imágenes, scripts, CSS) de http:// a https://." },
   "cookies-load":              { article: "Art. 22 LSSI / RGPD",        risk: "alto",    fix: "Bloquea las cookies no técnicas hasta que el usuario las acepte en el banner." },
-  "trackers":                  { article: "Art. 6 RGPD / Art. 22 LSSI", risk: "critico", fix: "Configura tu gestor de consentimiento (Cookiebot, CookieYes…) para bloquear rastreadores hasta el consentimiento." },
+  "trackers":                  { article: "Art. 6 RGPD / Art. 22 LSSI", risk: "critico", fix: "Verifica que tu gestor de consentimiento (Cookiebot, CookieYes, OneTrust…) bloquea GA/GTM y demás rastreadores hasta el consentimiento; si no usas ninguno, configúralo para ello." },
   "banner":                    { article: "Art. 22 LSSI / Guía AEPD",   risk: "alto",    fix: "Implementa un banner con opciones Aceptar, Rechazar y Configurar de igual visibilidad (Guía AEPD sobre cookies)." },
   "form-embed":                { article: "Art. 13 RGPD",               risk: "medio",   fix: "Comprueba que el formulario externo muestre cláusula informativa y casilla de consentimiento no premarcada." },
   "embeds":                    { article: "Arts. 6 y 49 RGPD",          risk: "medio",   fix: "Usa versiones sin cookies (p.ej. youtube-nocookie.com) o bloquea el embed hasta el consentimiento." },
