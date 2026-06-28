@@ -4,6 +4,7 @@ import { auditSite } from "@/lib/audit";
 import { qualifyLead, fallbackQualify, type LeadContact } from "@/lib/lead";
 import { analyzeLegal, toInternalSummary, toPublicTeaser } from "@/lib/legal";
 import { saveLead, updateLeadAnalysis, markLeadFlag, type LeadRecord } from "@/lib/store";
+import { markUsoConvertido } from "@/lib/uso-express";
 import { rateLimit, clientIp } from "@/lib/ratelimit";
 import { buildReportData, renderReportPdf } from "@/lib/report-pdf";
 import { sendReportEmail, emailEnabled } from "@/lib/email";
@@ -91,6 +92,9 @@ export async function POST(req: Request) {
     // Se ejecuta DESPUÉS de que la respuesta ya llegó al cliente (el usuario no espera).
     after(async () => {
       try {
+        // Cierra el círculo de prospección: el dominio convirtió → marcarlo en Uso Express.
+        await markUsoConvertido(audit.domain);
+
         const [fullQualification, legal] = await Promise.all([
           qualifyLead(audit, contact),
           analyzeLegal(url, { mode: "full" }),
