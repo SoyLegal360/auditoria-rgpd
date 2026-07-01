@@ -178,7 +178,15 @@ export function buildReportData(
 
 // Helvetica (WinAnsi) del PDF no incluye la flecha "→": la cambiamos por ">" para
 // que no salga como carácter roto en los textos dinámicos (recomendaciones, arreglos).
-const pdfSafe = (s: string) => s.replace(/[→⟶➝➔]/g, ">");
+// Además, @react-pdf/renderer NO interpreta Markdown: si la IA devuelve **negrita**,
+// `código` o # encabezados, saldrían los caracteres literales. Los limpiamos aquí.
+const pdfSafe = (s: string) =>
+  (s || "")
+    .replace(/[→⟶➝➔]/g, ">")
+    .replace(/\*\*(.+?)\*\*/g, "$1") // **negrita** -> texto (no soportado en el PDF)
+    .replace(/\*\*/g, "") // asteriscos dobles sueltos
+    .replace(/`([^`]+)`/g, "$1") // `código` -> texto
+    .replace(/^\s{0,3}#{1,6}\s+/gm, ""); // # encabezados Markdown
 
 const SEV_DOT: Record<string, string> = { fail: "#dc2626", warn: "#d97706" };
 const GRADES = ["A", "B", "C", "D", "E"];
