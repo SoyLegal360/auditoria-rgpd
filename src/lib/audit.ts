@@ -247,13 +247,33 @@ export async function auditSite(rawUrl: string): Promise<AuditResult> {
   }
 
   // ---------- TEXTOS LEGALES ----------
-  const legalDocs: { id: string; label: string; re: RegExp }[] = [
-    { id: "privacidad", label: "Política de Privacidad", re: /pol[íi]tica\s+de\s+privacidad|privacy[- ]?policy/i },
-    { id: "aviso-legal", label: "Aviso Legal (LSSI-CE)", re: /aviso\s+legal|legal[- ]?notice/i },
-    { id: "cookies-pol", label: "Política de Cookies", re: /pol[íi]tica\s+de\s+cookies|cookie[- ]?policy/i },
+  // Detectamos por texto visible Y por el href del enlace: muchas webs enlazan
+  // "/politica-de-privacidad/" con un texto corto ("Privacidad") o en catalán
+  // ("privacitat" / "avís legal"). Buscar solo la frase daba falsos negativos
+  // graves (p. ej. marcar "no hay política de privacidad" cuando sí está enlazada).
+  // El href debe ser absoluto o de raíz (evita anclas del banner como #privacy_overview).
+  const legalDocs: { id: string; label: string; re: RegExp; hrefRe: RegExp }[] = [
+    {
+      id: "privacidad",
+      label: "Política de Privacidad",
+      re: /pol[íi]tica\s+de\s+privac(?:idad|itat)|privacy[- ]?policy/i,
+      hrefRe: /href=["'](?:https?:\/\/|\/)[^"']*privac(?:idad|itat|y)[^"']*["']/i,
+    },
+    {
+      id: "aviso-legal",
+      label: "Aviso Legal (LSSI-CE)",
+      re: /av[ií]s(?:o)?\s+legal|legal[- ]?notice/i,
+      hrefRe: /href=["'](?:https?:\/\/|\/)[^"']*(?:aviso|avis)[-_]?legal[^"']*["']/i,
+    },
+    {
+      id: "cookies-pol",
+      label: "Política de Cookies",
+      re: /pol[íi]tica\s+de\s+cookies|cookie[- ]?policy/i,
+      hrefRe: /href=["'](?:https?:\/\/|\/)[^"']*cookie[^"']*["']/i,
+    },
   ];
   for (const doc of legalDocs) {
-    const present = doc.re.test(html);
+    const present = doc.re.test(html) || doc.hrefRe.test(html);
     findings.push({
       id: doc.id,
       category: "legal",
