@@ -367,7 +367,7 @@ function ReportDoc({ data }: { data: ReportData }) {
               Con la <Text style={styles.ctaHighlight}>Adaptación Web RGPD (desde 390 €)</Text> nuestro
               equipo legal redacta y certifica tus textos legales a medida: Aviso Legal, Política de
               Privacidad, Política de Cookies y consentimiento de formularios. Escríbenos a
-              hola@soylegal360.es o responde a este correo.
+              info@soylegal360.es o responde a este correo.
             </Text>
             <Link style={styles.ctaLink} src="https://www.soylegal360.es/servicios-proteccion-de-datos/">
               Ver nuestros servicios de protección de datos en soylegal360.es
